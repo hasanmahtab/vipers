@@ -3,10 +3,10 @@ import { Card, SectionTitle, TeamLink, formatMoney } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-export default function TablePage() {
-  const teams = getAllTeams();
-  const records = getTeamRecords();
-  const totals = getTotalPointsByTeam();
+export default async function TablePage() {
+  const teams = await getAllTeams();
+  const records = await getTeamRecords();
+  const totals = await getTotalPointsByTeam();
 
   const rows = teams
     .map((t) => ({ team: t, record: records[t.id] || { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0 }, points: totals[t.id] || 0 }))

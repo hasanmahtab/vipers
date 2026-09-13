@@ -1,38 +1,62 @@
-import Database from "better-sqlite3";
-import fs from "node:fs";
-import path from "node:path";
+import { createClient, type Client, type InArgs } from "@libsql/client";
 import bcrypt from "bcryptjs";
-
-const DB_PATH = process.env.DB_PATH || "./data/vipers.db";
-
-function ensureDir(filePath: string) {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
 
 declare global {
   // eslint-disable-next-line no-var
-  var __vipersDb: Database.Database | undefined;
+  var __vipersDb: Client | undefined;
+  // eslint-disable-next-line no-var
+  var __vipersDbReady: Promise<void> | undefined;
 }
 
-function createConnection(): Database.Database {
-  ensureDir(DB_PATH);
-  const db = new Database(DB_PATH);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  migrate(db);
-  return db;
+function createConnection(): Client {
+  // Turso (or any libSQL server) in production: set TURSO_DATABASE_URL / TURSO_AUTH_TOKEN.
+  // Falls back to a local file for local development only — that file does NOT
+  // survive on hosts without a persistent disk (e.g. Render's free tier), so
+  // production deployments should always point at a real Turso database.
+  const url = process.env.TURSO_DATABASE_URL || `file:${process.env.DB_PATH || "./data/vipers.db"}`;
+  const authToken = process.env.TURSO_AUTH_TOKEN;
+  return createClient({ url, authToken });
 }
 
-export function getDb(): Database.Database {
+function getClient(): Client {
   if (!global.__vipersDb) {
     global.__vipersDb = createConnection();
   }
   return global.__vipersDb;
 }
 
-function migrate(db: Database.Database) {
-  db.exec(`
+/** Always await this before touching the database — it lazily runs migrations + seeding once. */
+export async function getDb(): Promise<Client> {
+  const client = getClient();
+  if (!global.__vipersDbReady) {
+    global.__vipersDbReady = migrate(client).catch((err) => {
+      global.__vipersDbReady = undefined;
+      throw err;
+    });
+  }
+  await global.__vipersDbReady;
+  return client;
+}
+
+export async function run(sql: string, args: InArgs = []) {
+  const db = await getDb();
+  return db.execute({ sql, args });
+}
+
+export async function get<T = any>(sql: string, args: InArgs = []): Promise<T | undefined> {
+  const db = await getDb();
+  const result = await db.execute({ sql, args });
+  return (result.rows[0] as unknown as T) ?? undefined;
+}
+
+export async function all<T = any>(sql: string, args: InArgs = []): Promise<T[]> {
+  const db = await getDb();
+  const result = await db.execute({ sql, args });
+  return result.rows as unknown as T[];
+}
+
+async function migrate(db: Client) {
+  await db.executeMultiple(`
     CREATE TABLE IF NOT EXISTS teams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
@@ -112,7 +136,7 @@ function migrate(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_tx_team ON transactions(team_id);
   `);
 
-  seedIfEmpty(db);
+  await seedIfEmpty(db);
 }
 
 const DEFAULT_TEAMS: Array<{ name: string; captain: string; color: string }> = [
@@ -169,44 +193,46 @@ function titleCase(name: string): string {
     .join(" ");
 }
 
-function seedIfEmpty(db: Database.Database) {
-  const teamCount = (db.prepare("SELECT COUNT(*) as c FROM teams").get() as { c: number }).c;
-  if (teamCount === 0) {
-    const insert = db.prepare(
-      "INSERT INTO teams (name, captain, color, budget_remaining) VALUES (?, ?, ?, 100)"
+async function count(db: Client, table: string): Promise<number> {
+  const result = await db.execute(`SELECT COUNT(*) as c FROM ${table}`);
+  return Number(result.rows[0].c as unknown as number);
+}
+
+async function seedIfEmpty(db: Client) {
+  if ((await count(db, "teams")) === 0) {
+    await db.batch(
+      DEFAULT_TEAMS.map((t) => ({
+        sql: "INSERT INTO teams (name, captain, color, budget_remaining) VALUES (?, ?, ?, 100)",
+        args: [t.name, t.captain, t.color],
+      })),
+      "write"
     );
-    const insertMany = db.transaction((teams: typeof DEFAULT_TEAMS) => {
-      for (const t of teams) insert.run(t.name, t.captain, t.color);
-    });
-    insertMany(DEFAULT_TEAMS);
   }
 
-  const playerCount = (db.prepare("SELECT COUNT(*) as c FROM players").get() as { c: number }).c;
-  if (playerCount === 0) {
-    const insert = db.prepare(
-      "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (NULL, ?, NULL, 0, ?, ?)"
-    );
-    const insertMany = db.transaction((pool: typeof RAW_PLAYER_POOL) => {
-      for (const [rawName, points] of pool) {
+  if ((await count(db, "players")) === 0) {
+    await db.batch(
+      RAW_PLAYER_POOL.map(([rawName, points]) => {
         const isCaptain = /\(c\)\s*$/i.test(rawName.trim());
         const cleanName = titleCase(rawName.replace(/\(c\)\s*$/i, "").trim());
-        insert.run(cleanName, points, isCaptain ? 1 : 0);
-      }
-    });
-    insertMany(RAW_PLAYER_POOL);
+        return {
+          sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (NULL, ?, NULL, 0, ?, ?)",
+          args: [cleanName, points, isCaptain ? 1 : 0],
+        };
+      }),
+      "write"
+    );
   }
 
-  const adminCount = (db.prepare("SELECT COUNT(*) as c FROM admin_users").get() as { c: number }).c;
-  if (adminCount === 0) {
+  if ((await count(db, "admin_users")) === 0) {
     const password = process.env.ADMIN_PASSWORD || "change-me-please";
     const hash = bcrypt.hashSync(password, 10);
-    db.prepare(
-      "INSERT INTO admin_users (username, password_hash, display_name) VALUES (?, ?, ?)"
-    ).run("admin", hash, "League Admin");
+    await db.execute({
+      sql: "INSERT INTO admin_users (username, password_hash, display_name) VALUES (?, ?, ?)",
+      args: ["admin", hash, "League Admin"],
+    });
   }
 
-  const gwCount = (db.prepare("SELECT COUNT(*) as c FROM gameweeks").get() as { c: number }).c;
-  if (gwCount === 0) {
-    db.prepare("INSERT INTO gameweeks (number, label, status) VALUES (1, 'Gameweek 1', 'active')").run();
+  if ((await count(db, "gameweeks")) === 0) {
+    await db.execute("INSERT INTO gameweeks (number, label, status) VALUES (1, 'Gameweek 1', 'active')");
   }
 }

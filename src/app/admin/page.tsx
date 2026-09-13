@@ -6,7 +6,7 @@ import {
   logoutAction,
   setActiveGameweekAction,
 } from "@/lib/actions";
-import { getAllTeams, getFixturesByGameweek, getGameweeks, getTeam } from "@/lib/queries";
+import { getAllTeams, getFixturesByGameweek, getGameweeks } from "@/lib/queries";
 import { Card, SectionTitle, TeamDot } from "@/components/ui";
 import { getCurrentAdmin } from "@/lib/auth";
 
@@ -14,8 +14,12 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
   const admin = await getCurrentAdmin();
-  const gameweeks = getGameweeks();
-  const teams = getAllTeams();
+  const gameweeks = await getGameweeks();
+  const teams = await getAllTeams();
+  const teamsById = Object.fromEntries(teams.map((t) => [t.id, t]));
+  const fixturesByGw = Object.fromEntries(
+    await Promise.all(gameweeks.map(async (gw) => [gw.id, await getFixturesByGameweek(gw.id)] as const))
+  );
 
   return (
     <div className="space-y-8">
@@ -82,7 +86,7 @@ export default async function AdminDashboardPage() {
 
         <div className="space-y-4">
           {gameweeks.map((gw) => {
-            const fixtures = getFixturesByGameweek(gw.id);
+            const fixtures = fixturesByGw[gw.id];
             return (
               <Card key={gw.id}>
                 <div className="flex items-center justify-between">
@@ -110,8 +114,8 @@ export default async function AdminDashboardPage() {
 
                 <div className="mt-3 space-y-2">
                   {fixtures.map((f) => {
-                    const home = getTeam(f.home_team_id);
-                    const away = getTeam(f.away_team_id);
+                    const home = teamsById[f.home_team_id];
+                    const away = teamsById[f.away_team_id];
                     return (
                       <div
                         key={f.id}

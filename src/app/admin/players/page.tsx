@@ -14,9 +14,12 @@ export const dynamic = "force-dynamic";
 
 const POSITION_LIMITS: Record<string, number> = { GK: 1, DEF: 3, MID: 3, FWD: 1 };
 
-export default function AdminPlayersPage() {
-  const teams = getAllTeams();
-  const pool = getUnassignedPlayers();
+export default async function AdminPlayersPage() {
+  const teams = await getAllTeams();
+  const pool = await getUnassignedPlayers();
+  const squadsByTeam = Object.fromEntries(
+    await Promise.all(teams.map(async (t) => [t.id, await getPlayersByTeam(t.id)] as const))
+  );
 
   return (
     <div className="space-y-8">
@@ -101,7 +104,7 @@ export default function AdminPlayersPage() {
         <h3 className="mb-3 font-display text-lg font-bold">Team Squads</h3>
         <div className="grid gap-4 sm:grid-cols-2">
           {teams.map((t) => {
-            const squad = getPlayersByTeam(t.id);
+            const squad = squadsByTeam[t.id];
             const counts = squad.reduce<Record<string, number>>((acc, p) => {
               if (p.position) acc[p.position] = (acc[p.position] || 0) + 1;
               return acc;
@@ -162,7 +165,7 @@ export default function AdminPlayersPage() {
             </thead>
             <tbody>
               {teams.flatMap((t) =>
-                getPlayersByTeam(t.id).map((p) => (
+                squadsByTeam[t.id].map((p) => (
                   <tr key={p.id} className="border-t border-ink-border align-top">
                     <td className="py-2">{t.name}</td>
                     <td className="py-2">

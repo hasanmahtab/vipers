@@ -5,15 +5,15 @@ import { Card, PositionBadge, SectionTitle, TeamDot } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-export default function FixtureScorePage({ params }: { params: { id: string } }) {
-  const fixture = getFixture(Number(params.id));
+export default async function FixtureScorePage({ params }: { params: { id: string } }) {
+  const fixture = await getFixture(Number(params.id));
   if (!fixture) notFound();
 
-  const home = getTeam(fixture.home_team_id)!;
-  const away = getTeam(fixture.away_team_id)!;
-  const homePlayers = getPlayersByTeam(home.id);
-  const awayPlayers = getPlayersByTeam(away.id);
-  const existingStats = new Map(getStatsForFixture(fixture.id).map((s) => [s.player_id, s]));
+  const home = (await getTeam(fixture.home_team_id))!;
+  const away = (await getTeam(fixture.away_team_id))!;
+  const homePlayers = await getPlayersByTeam(home.id);
+  const awayPlayers = await getPlayersByTeam(away.id);
+  const existingStats = new Map((await getStatsForFixture(fixture.id)).map((s) => [s.player_id, s]));
 
   return (
     <div className="space-y-6">

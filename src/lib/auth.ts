@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
-import { getDb } from "./db";
+import { get } from "./db";
 import { signToken, verifyToken } from "./token";
 
 const SESSION_COOKIE = "vipers_session";
@@ -28,13 +28,11 @@ export interface AdminUser {
   display_name: string | null;
 }
 
-export function verifyLogin(username: string, password: string): AdminUser | null {
-  const db = getDb();
-  const row = db
-    .prepare("SELECT id, username, password_hash, display_name FROM admin_users WHERE username = ?")
-    .get(username) as
-    | { id: number; username: string; password_hash: string; display_name: string | null }
-    | undefined;
+export async function verifyLogin(username: string, password: string): Promise<AdminUser | null> {
+  const row = await get<{ id: number; username: string; password_hash: string; display_name: string | null }>(
+    "SELECT id, username, password_hash, display_name FROM admin_users WHERE username = ?",
+    [username]
+  );
   if (!row) return null;
   const ok = bcrypt.compareSync(password, row.password_hash);
   if (!ok) return null;

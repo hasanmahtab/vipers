@@ -6,7 +6,7 @@ import { Card, SectionTitle } from "@/components/ui";
 export const dynamic = "force-dynamic";
 
 export default async function AdminUsersPage() {
-  const users = getAdminUsers();
+  const users = await getAdminUsers();
   const current = await getCurrentAdmin();
 
   return (

@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { all, get } from "./db";
 import { Position } from "./scoring";
 
 export interface Team {
@@ -38,62 +38,54 @@ export interface Gameweek {
   status: "upcoming" | "active" | "completed";
 }
 
-export function getAllTeams(): Team[] {
-  return getDb().prepare("SELECT * FROM teams ORDER BY name").all() as Team[];
+export function getAllTeams(): Promise<Team[]> {
+  return all<Team>("SELECT * FROM teams ORDER BY name");
 }
 
-export function getTeam(id: number): Team | undefined {
-  return getDb().prepare("SELECT * FROM teams WHERE id = ?").get(id) as Team | undefined;
+export function getTeam(id: number): Promise<Team | undefined> {
+  return get<Team>("SELECT * FROM teams WHERE id = ?", [id]);
 }
 
-export function getPlayersByTeam(teamId: number): Player[] {
-  return getDb()
-    .prepare(
-      "SELECT * FROM players WHERE team_id = ? ORDER BY CASE position WHEN 'GK' THEN 0 WHEN 'DEF' THEN 1 WHEN 'MID' THEN 2 ELSE 3 END, name"
-    )
-    .all(teamId) as Player[];
-}
-
-export function getPlayer(id: number): Player | undefined {
-  return getDb().prepare("SELECT * FROM players WHERE id = ?").get(id) as Player | undefined;
-}
-
-export function getAllPlayers(): Player[] {
-  return getDb().prepare("SELECT * FROM players ORDER BY name").all() as Player[];
-}
-
-export function getUnassignedPlayers(): Player[] {
-  return getDb()
-    .prepare("SELECT * FROM players WHERE team_id IS NULL ORDER BY last_season_points DESC, name")
-    .all() as Player[];
-}
-
-export function getGameweeks(): Gameweek[] {
-  return getDb().prepare("SELECT * FROM gameweeks ORDER BY number").all() as Gameweek[];
-}
-
-export function getGameweek(id: number): Gameweek | undefined {
-  return getDb().prepare("SELECT * FROM gameweeks WHERE id = ?").get(id) as Gameweek | undefined;
-}
-
-export function getActiveGameweek(): Gameweek | undefined {
-  const db = getDb();
-  return (
-    (db.prepare("SELECT * FROM gameweeks WHERE status = 'active' ORDER BY number DESC LIMIT 1").get() as
-      | Gameweek
-      | undefined) ??
-    (db.prepare("SELECT * FROM gameweeks ORDER BY number DESC LIMIT 1").get() as Gameweek | undefined)
+export function getPlayersByTeam(teamId: number): Promise<Player[]> {
+  return all<Player>(
+    "SELECT * FROM players WHERE team_id = ? ORDER BY CASE position WHEN 'GK' THEN 0 WHEN 'DEF' THEN 1 WHEN 'MID' THEN 2 ELSE 3 END, name",
+    [teamId]
   );
 }
 
-export function getFixturesByGameweek(gameweekId: number): Fixture[] {
-  return getDb()
-    .prepare("SELECT * FROM fixtures WHERE gameweek_id = ? ORDER BY id")
-    .all(gameweekId) as Fixture[];
+export function getPlayer(id: number): Promise<Player | undefined> {
+  return get<Player>("SELECT * FROM players WHERE id = ?", [id]);
 }
 
-export function getFixture(id: number): Fixture | undefined {
-  return getDb().prepare("SELECT * FROM fixtures WHERE id = ?").get(id) as Fixture | undefined;
+export function getAllPlayers(): Promise<Player[]> {
+  return all<Player>("SELECT * FROM players ORDER BY name");
+}
+
+export function getUnassignedPlayers(): Promise<Player[]> {
+  return all<Player>("SELECT * FROM players WHERE team_id IS NULL ORDER BY last_season_points DESC, name");
+}
+
+export function getGameweeks(): Promise<Gameweek[]> {
+  return all<Gameweek>("SELECT * FROM gameweeks ORDER BY number");
+}
+
+export function getGameweek(id: number): Promise<Gameweek | undefined> {
+  return get<Gameweek>("SELECT * FROM gameweeks WHERE id = ?", [id]);
+}
+
+export async function getActiveGameweek(): Promise<Gameweek | undefined> {
+  return (
+    (await get<Gameweek>("SELECT * FROM gameweeks WHERE status = 'active' ORDER BY number DESC LIMIT 1")) ??
+    (await get<Gameweek>("SELECT * FROM gameweeks ORDER BY number DESC LIMIT 1"))
+  );
+}
+
+export function getFixturesByGameweek(gameweekId: number): Promise<Fixture[]> {
+  return all<Fixture>("SELECT * FROM fixtures WHERE gameweek_id = ? ORDER BY id", [gameweekId]);
+}
+
+export function getFixture(id: number): Promise<Fixture | undefined> {
+  return get<Fixture>("SELECT * FROM fixtures WHERE id = ?", [id]);
 }
 
 export interface PlayerStatRow {
@@ -109,24 +101,23 @@ export interface PlayerStatRow {
   goals_conceded: number;
 }
 
-export function getStatsForFixture(fixtureId: number): PlayerStatRow[] {
-  return getDb()
-    .prepare("SELECT * FROM player_stats WHERE fixture_id = ?")
-    .all(fixtureId) as PlayerStatRow[];
+export function getStatsForFixture(fixtureId: number): Promise<PlayerStatRow[]> {
+  return all<PlayerStatRow>("SELECT * FROM player_stats WHERE fixture_id = ?", [fixtureId]);
 }
 
-export function getStatsForPlayer(playerId: number): (PlayerStatRow & { fixture: Fixture; gameweek: Gameweek })[] {
-  const rows = getDb()
-    .prepare(
-      `SELECT ps.*, f.gameweek_id, f.home_team_id, f.away_team_id, f.home_score, f.away_score, f.status as fixture_status, f.played_at,
-              g.number as gw_number, g.label as gw_label, g.status as gw_status, g.id as gw_id
-       FROM player_stats ps
-       JOIN fixtures f ON f.id = ps.fixture_id
-       JOIN gameweeks g ON g.id = f.gameweek_id
-       WHERE ps.player_id = ?
-       ORDER BY g.number ASC`
-    )
-    .all(playerId) as any[];
+export async function getStatsForPlayer(
+  playerId: number
+): Promise<(PlayerStatRow & { fixture: Fixture; gameweek: Gameweek })[]> {
+  const rows = await all<any>(
+    `SELECT ps.*, f.gameweek_id, f.home_team_id, f.away_team_id, f.home_score, f.away_score, f.status as fixture_status, f.played_at,
+            g.number as gw_number, g.label as gw_label, g.status as gw_status, g.id as gw_id
+     FROM player_stats ps
+     JOIN fixtures f ON f.id = ps.fixture_id
+     JOIN gameweeks g ON g.id = f.gameweek_id
+     WHERE ps.player_id = ?
+     ORDER BY g.number ASC`,
+    [playerId]
+  );
 
   return rows.map((r) => ({
     id: r.id,
@@ -153,24 +144,23 @@ export function getStatsForPlayer(playerId: number): (PlayerStatRow & { fixture:
   }));
 }
 
-export function getTotalPointsForPlayer(playerId: number): number {
-  const row = getDb()
-    .prepare("SELECT COALESCE(SUM(points),0) as total FROM player_stats WHERE player_id = ?")
-    .get(playerId) as { total: number };
-  return row.total;
+export async function getTotalPointsForPlayer(playerId: number): Promise<number> {
+  const row = await get<{ total: number }>(
+    "SELECT COALESCE(SUM(points),0) as total FROM player_stats WHERE player_id = ?",
+    [playerId]
+  );
+  return Number(row?.total ?? 0);
 }
 
-export function getTotalPointsByTeam(): Record<number, number> {
-  const rows = getDb()
-    .prepare(
-      `SELECT p.team_id as team_id, COALESCE(SUM(ps.points),0) as total
-       FROM players p
-       LEFT JOIN player_stats ps ON ps.player_id = p.id
-       GROUP BY p.team_id`
-    )
-    .all() as { team_id: number; total: number }[];
+export async function getTotalPointsByTeam(): Promise<Record<number, number>> {
+  const rows = await all<{ team_id: number; total: number }>(
+    `SELECT p.team_id as team_id, COALESCE(SUM(ps.points),0) as total
+     FROM players p
+     LEFT JOIN player_stats ps ON ps.player_id = p.id
+     GROUP BY p.team_id`
+  );
   const map: Record<number, number> = {};
-  for (const r of rows) map[r.team_id] = r.total;
+  for (const r of rows) if (r.team_id !== null) map[r.team_id] = Number(r.total);
   return map;
 }
 
@@ -183,10 +173,8 @@ export interface TeamRecord {
   goalsAgainst: number;
 }
 
-export function getTeamRecords(): Record<number, TeamRecord> {
-  const fixtures = getDb()
-    .prepare("SELECT * FROM fixtures WHERE status = 'final'")
-    .all() as Fixture[];
+export async function getTeamRecords(): Promise<Record<number, TeamRecord>> {
+  const fixtures = await all<Fixture>("SELECT * FROM fixtures WHERE status = 'final'");
 
   const records: Record<number, TeamRecord> = {};
   const ensure = (id: number) => {
@@ -222,19 +210,17 @@ export function getTeamRecords(): Record<number, TeamRecord> {
 }
 
 export function getTopPerformers(gameweekId: number, limit = 8) {
-  const rows = getDb()
-    .prepare(
-      `SELECT ps.*, pl.name as player_name, pl.position as position, pl.team_id as team_id, t.name as team_name, t.color as team_color
-       FROM player_stats ps
-       JOIN fixtures f ON f.id = ps.fixture_id
-       JOIN players pl ON pl.id = ps.player_id
-       JOIN teams t ON t.id = pl.team_id
-       WHERE f.gameweek_id = ?
-       ORDER BY ps.points DESC
-       LIMIT ?`
-    )
-    .all(gameweekId, limit) as any[];
-  return rows;
+  return all<any>(
+    `SELECT ps.*, pl.name as player_name, pl.position as position, pl.team_id as team_id, t.name as team_name, t.color as team_color
+     FROM player_stats ps
+     JOIN fixtures f ON f.id = ps.fixture_id
+     JOIN players pl ON pl.id = ps.player_id
+     JOIN teams t ON t.id = pl.team_id
+     WHERE f.gameweek_id = ?
+     ORDER BY ps.points DESC
+     LIMIT ?`,
+    [gameweekId, limit]
+  );
 }
 
 export interface AdminUserRow {
@@ -244,14 +230,10 @@ export interface AdminUserRow {
   created_at: string;
 }
 
-export function getAdminUsers(): AdminUserRow[] {
-  return getDb()
-    .prepare("SELECT id, username, display_name, created_at FROM admin_users ORDER BY created_at")
-    .all() as AdminUserRow[];
+export function getAdminUsers(): Promise<AdminUserRow[]> {
+  return all<AdminUserRow>("SELECT id, username, display_name, created_at FROM admin_users ORDER BY created_at");
 }
 
 export function getTransactionsForTeam(teamId: number) {
-  return getDb()
-    .prepare("SELECT * FROM transactions WHERE team_id = ? ORDER BY created_at DESC")
-    .all(teamId);
+  return all<any>("SELECT * FROM transactions WHERE team_id = ? ORDER BY created_at DESC", [teamId]);
 }

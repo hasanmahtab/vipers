@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import {
+  getAllTeams,
   getFixturesByGameweek,
   getGameweeks,
   getPlayersByTeam,
@@ -13,21 +14,29 @@ import { POSITIONS } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
 
-export default function TeamDetailPage({ params }: { params: { id: string } }) {
-  const team = getTeam(Number(params.id));
+export default async function TeamDetailPage({ params }: { params: { id: string } }) {
+  const team = await getTeam(Number(params.id));
   if (!team) notFound();
 
-  const players = getPlayersByTeam(team.id);
-  const records = getTeamRecords();
+  const [players, records, transactions, allTeams, gameweeks] = await Promise.all([
+    getPlayersByTeam(team.id),
+    getTeamRecords(),
+    getTransactionsForTeam(team.id) as Promise<any[]>,
+    getAllTeams(),
+    getGameweeks(),
+  ]);
+  const teamsById = Object.fromEntries(allTeams.map((t) => [t.id, t]));
   const record = records[team.id] || { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0 };
-  const transactions = getTransactionsForTeam(team.id) as any[];
 
-  const playerPoints = Object.fromEntries(players.map((p) => [p.id, getTotalPointsForPlayer(p.id)]));
+  const playerPointsEntries = await Promise.all(
+    players.map(async (p) => [p.id, await getTotalPointsForPlayer(p.id)] as const)
+  );
+  const playerPoints = Object.fromEntries(playerPointsEntries);
   const totalPoints = Object.values(playerPoints).reduce((a, b) => a + b, 0);
 
-  const gameweeks = getGameweeks();
-  const fixtures = gameweeks.flatMap((gw) =>
-    getFixturesByGameweek(gw.id)
+  const fixturesByGw = await Promise.all(gameweeks.map((gw) => getFixturesByGameweek(gw.id)));
+  const fixtures = gameweeks.flatMap((gw, i) =>
+    fixturesByGw[i]
       .filter((f) => f.home_team_id === team.id || f.away_team_id === team.id)
       .map((f) => ({ ...f, gwLabel: gw.label || `GW${gw.number}` }))
   );
@@ -100,7 +109,7 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
             {fixtures.map((f) => {
               const isHome = f.home_team_id === team.id;
               const opponentId = isHome ? f.away_team_id : f.home_team_id;
-              const opponent = getTeam(opponentId);
+              const opponent = teamsById[opponentId];
               const score =
                 f.status === "final" ? `${isHome ? f.home_score : f.away_score} - ${isHome ? f.away_score : f.home_score}` : "vs";
               return (

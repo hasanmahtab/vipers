@@ -3,7 +3,6 @@ import {
   getActiveGameweek,
   getAllTeams,
   getFixturesByGameweek,
-  getTeam,
   getTeamRecords,
   getTopPerformers,
   getTotalPointsByTeam,
@@ -12,16 +11,17 @@ import { Card, PlayerLink, PositionBadge, SectionTitle, StatPill, TeamLink, form
 
 export const dynamic = "force-dynamic";
 
-export default function HomePage() {
-  const gameweek = getActiveGameweek();
-  const teams = getAllTeams();
-  const records = getTeamRecords();
-  const totals = getTotalPointsByTeam();
+export default async function HomePage() {
+  const gameweek = await getActiveGameweek();
+  const teams = await getAllTeams();
+  const records = await getTeamRecords();
+  const totals = await getTotalPointsByTeam();
+  const teamsById = Object.fromEntries(teams.map((t) => [t.id, t]));
 
   const standings = [...teams].sort((a, b) => (totals[b.id] || 0) - (totals[a.id] || 0));
 
-  const fixtures = gameweek ? getFixturesByGameweek(gameweek.id) : [];
-  const topPerformers = gameweek ? getTopPerformers(gameweek.id, 5) : [];
+  const fixtures = gameweek ? await getFixturesByGameweek(gameweek.id) : [];
+  const topPerformers = gameweek ? await getTopPerformers(gameweek.id, 5) : [];
 
   return (
     <div className="space-y-8">
@@ -44,8 +44,8 @@ export default function HomePage() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {fixtures.map((f) => {
-              const home = getTeam(f.home_team_id)!;
-              const away = getTeam(f.away_team_id)!;
+              const home = teamsById[f.home_team_id];
+              const away = teamsById[f.away_team_id];
               const final = f.status === "final";
               return (
                 <Card key={f.id}>

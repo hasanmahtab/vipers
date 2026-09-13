@@ -10,8 +10,10 @@ A free, mobile-friendly fantasy football web app for the Vipers soccer league �
   scored/assisted — clean sheets, appearance points, and the goals-conceded
   penalty are all calculated automatically. Also used to set up the auction
   results (players, prices, budgets) and manage gameweeks/fixtures.
-- **Data** lives in a single SQLite file (`data/vipers.db`) — nothing to
-  configure, and it's easy to back up (just copy the file).
+- **Data** lives in a free hosted [Turso](https://turso.tech) database
+  (SQLite-compatible) so the app can run on hosts with no persistent disk —
+  including every truly free tier (Render free, Vercel, etc.) — and you never
+  have to run anything on your own computer.
 
 ## Scoring rules (built in)
 
@@ -38,13 +40,20 @@ window. After every match, the admin enters the score and the app
 automatically adds money to both teams' balances: **+£4M** for a win,
 **+£2M** each for a draw, **+£1M** for a loss.
 
-## Getting started (local)
+## Getting started — no local install needed
 
-Requires [Node.js](https://nodejs.org) 20 or later.
+You do **not** need Node.js, npm, or anything else installed on your own
+computer. Everything — creating the database, deploying the site, adding
+admin logins, drafting players, entering scores — is done through web pages
+(Turso's dashboard, your host's dashboard, and the app itself). See
+**Deploying for free** below for the exact steps.
+
+If you *do* have Node.js 20+ available and want to run it on your own
+machine (e.g. to test changes before they go live):
 
 ```bash
 npm install
-cp .env.example .env.local   # then edit ADMIN_PASSWORD and SESSION_SECRET
+cp .env.example .env.local   # then edit ADMIN_PASSWORD, SESSION_SECRET, and the TURSO_* values
 npm run seed                 # creates the database + the 4 teams + admin login
 npm run dev                  # http://localhost:3000
 ```
@@ -93,42 +102,51 @@ automatically — just share the site link with the league.
 
 ## Deploying for free so everyone can use it
 
-This app needs a small always-on Node server (not a static site) because of
-the SQLite database, so a couple of good free options:
+Everything below happens in a web browser — no installs, no command line.
 
-### Option A — Render (recommended, simplest)
+### Step 1 — Create a free database on Turso
 
-1. Push this repo to GitHub.
-2. On [Render](https://render.com), create a new **Web Service** from the
-   repo.
-3. Build command: `npm install && npm run build`
-   Start command: `npm start`
-4. Add environment variables `ADMIN_PASSWORD` and `SESSION_SECRET` (see
-   above) and `DB_PATH=/data/vipers.db`.
-5. Add a free **persistent disk** mounted at `/data` (Render → your service
-   → Disks) so the database survives restarts/redeploys.
-6. Deploy — Render gives you a free `https://your-app.onrender.com` link you
-   can share with the league. (Free-tier services sleep after inactivity and
-   take a few seconds to wake up on the first visit — that's normal.)
+1. Go to [turso.tech](https://turso.tech) and sign up (free, no credit card).
+2. From their dashboard, create a new database (any name, e.g. `vipers`).
+3. Once it's created, find:
+   - The **database URL** — looks like `libsql://vipers-yourname.turso.io`
+   - An **auth token** — the dashboard has a "Create Token" / "Generate
+     Token" button for the database
+4. Keep both values handy for the next step.
 
-### Option B — Railway or Fly.io
+### Step 2 — Deploy the app on Render
 
-Both work the same way: Node web service, build with `npm run build`, start
-with `npm start`, and attach a small persistent volume for the `data/`
-folder so the SQLite file isn't wiped on redeploy. Both have free/low-cost
-tiers.
+1. Push this repo to GitHub (already done if you're reading this from the
+   repo).
+2. Go to [render.com](https://render.com) and sign up (free, no credit card
+   needed for this).
+3. Click **New → Web Service** and connect this GitHub repo.
+4. Fill in:
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm start`
+5. Under **Environment**, add these variables:
+   - `ADMIN_PASSWORD` → a password for the first admin login
+   - `SESSION_SECRET` → any long random string (40+ random characters)
+   - `TURSO_DATABASE_URL` → the database URL from Step 1
+   - `TURSO_AUTH_TOKEN` → the auth token from Step 1
+6. Click **Deploy**. No disk needed — the database lives on Turso, not on
+   Render, so the free tier is all you need.
 
-> Vercel is not recommended here — its serverless functions don't have a
-> writable persistent disk, so the SQLite database wouldn't survive between
-> requests. If you'd rather use Vercel, say so and we can swap the database
-> for a free hosted Postgres (e.g. Neon) instead.
+A few minutes later you'll get a free link like
+`https://vipers-fantasy.onrender.com` to share with the league. (Render's
+free tier sleeps after inactivity and takes a few seconds to wake up on the
+first visit after a quiet spell — that's normal and free.)
+
+Vercel works exactly the same way (connect the repo, add the same four
+environment variables, deploy) if you'd rather use that instead of Render —
+either is genuinely free and needs no disk, since the data lives on Turso.
 
 ## Project structure
 
 ```
 src/app/            Pages (home, teams, players, table, admin/*)
 src/components/     Shared UI pieces (nav, cards, badges)
-src/lib/db.ts       SQLite connection + schema + first-run seeding
+src/lib/db.ts       Turso (libSQL) connection + schema + first-run seeding
 src/lib/scoring.ts  The points-calculation rules
 src/lib/queries.ts  Read queries used by pages
 src/lib/actions.ts  Server actions used by admin forms (writes)

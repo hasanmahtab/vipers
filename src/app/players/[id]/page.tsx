@@ -5,13 +5,13 @@ import { POSITION_LABEL } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
 
-export default function PlayerDetailPage({ params }: { params: { id: string } }) {
-  const player = getPlayer(Number(params.id));
+export default async function PlayerDetailPage({ params }: { params: { id: string } }) {
+  const player = await getPlayer(Number(params.id));
   if (!player) notFound();
 
-  const team = player.team_id ? getTeam(player.team_id) : undefined;
-  const totalPoints = getTotalPointsForPlayer(player.id);
-  const history = getStatsForPlayer(player.id);
+  const team = player.team_id ? await getTeam(player.team_id) : undefined;
+  const totalPoints = await getTotalPointsForPlayer(player.id);
+  const history = await getStatsForPlayer(player.id);
 
   const totalGoals = history.reduce((a, h) => a + h.goals, 0);
   const totalAssists = history.reduce((a, h) => a + h.assists, 0);

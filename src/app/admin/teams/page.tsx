@@ -4,8 +4,11 @@ import { Card, SectionTitle, TeamDot, formatMoney } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-export default function AdminTeamsPage() {
-  const teams = getAllTeams();
+export default async function AdminTeamsPage() {
+  const teams = await getAllTeams();
+  const txnsByTeam = Object.fromEntries(
+    await Promise.all(teams.map(async (t) => [t.id, (await getTransactionsForTeam(t.id)) as any[]] as const))
+  );
 
   return (
     <div className="space-y-6">
@@ -17,7 +20,7 @@ export default function AdminTeamsPage() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {teams.map((t) => {
-          const txns = getTransactionsForTeam(t.id) as any[];
+          const txns = txnsByTeam[t.id];
           return (
             <Card key={t.id}>
               <div className="flex items-center gap-2">
