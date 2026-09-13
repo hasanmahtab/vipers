@@ -1,0 +1,142 @@
+import { notFound } from "next/navigation";
+import {
+  getFixturesByGameweek,
+  getGameweeks,
+  getPlayersByTeam,
+  getTeam,
+  getTeamRecords,
+  getTotalPointsForPlayer,
+  getTransactionsForTeam,
+} from "@/lib/queries";
+import { Card, PlayerLink, PositionBadge, SectionTitle, StatPill, TeamDot, formatMoney } from "@/components/ui";
+import { POSITIONS } from "@/lib/scoring";
+
+export const dynamic = "force-dynamic";
+
+export default function TeamDetailPage({ params }: { params: { id: string } }) {
+  const team = getTeam(Number(params.id));
+  if (!team) notFound();
+
+  const players = getPlayersByTeam(team.id);
+  const records = getTeamRecords();
+  const record = records[team.id] || { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0 };
+  const transactions = getTransactionsForTeam(team.id) as any[];
+
+  const playerPoints = Object.fromEntries(players.map((p) => [p.id, getTotalPointsForPlayer(p.id)]));
+  const totalPoints = Object.values(playerPoints).reduce((a, b) => a + b, 0);
+
+  const gameweeks = getGameweeks();
+  const fixtures = gameweeks.flatMap((gw) =>
+    getFixturesByGameweek(gw.id)
+      .filter((f) => f.home_team_id === team.id || f.away_team_id === team.id)
+      .map((f) => ({ ...f, gwLabel: gw.label || `GW${gw.number}` }))
+  );
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-2" style={{ borderColor: `${team.color}55` }}>
+        <div className="flex items-center gap-3">
+          <TeamDot color={team.color} />
+          <div>
+            <h1 className="font-display text-2xl font-bold">{team.name}</h1>
+            <p className="text-sm text-white/60">Captain: {team.captain}</p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <StatPill label="Total Points" value={totalPoints} tone="neon" />
+          <StatPill label="Budget Left" value={formatMoney(team.budget_remaining)} />
+          <StatPill label="Played" value={record.played} />
+          <StatPill label="Record" value={`${record.won}-${record.drawn}-${record.lost}`} />
+          <StatPill label="GD" value={record.goalsFor - record.goalsAgainst} />
+        </div>
+      </Card>
+
+      <section>
+        <SectionTitle accent>Squad ({players.length}/8)</SectionTitle>
+        <div className="space-y-4">
+          {POSITIONS.map((pos) => {
+            const inPos = players.filter((p) => p.position === pos);
+            if (inPos.length === 0) return null;
+            return (
+              <Card key={pos}>
+                <div className="mb-2 flex items-center gap-2">
+                  <PositionBadge position={pos} />
+                  <span className="text-xs uppercase tracking-wide text-white/40">
+                    {pos === "GK" ? "1 required" : pos === "FWD" ? "1 required" : "3 required"}
+                  </span>
+                </div>
+                <div className="divide-y divide-ink-border">
+                  {inPos.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                      <PlayerLink id={p.id} name={p.name} className="font-medium" />
+                      <div className="flex items-center gap-3 text-sm text-white/60">
+                        <span>{formatMoney(p.price)}</span>
+                        <span className="font-display font-bold text-neon">{playerPoints[p.id] || 0} pts</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })}
+          {players.length === 0 && (
+            <Card>
+              <p className="text-sm text-white/60">
+                Squad not set yet — players will appear here once the auction results are entered.
+              </p>
+            </Card>
+          )}
+        </div>
+      </section>
+
+      <section>
+        <SectionTitle accent>Fixtures</SectionTitle>
+        {fixtures.length === 0 ? (
+          <Card>
+            <p className="text-sm text-white/60">No fixtures scheduled yet.</p>
+          </Card>
+        ) : (
+          <Card className="divide-y divide-ink-border">
+            {fixtures.map((f) => {
+              const isHome = f.home_team_id === team.id;
+              const opponentId = isHome ? f.away_team_id : f.home_team_id;
+              const opponent = getTeam(opponentId);
+              const score =
+                f.status === "final" ? `${isHome ? f.home_score : f.away_score} - ${isHome ? f.away_score : f.home_score}` : "vs";
+              return (
+                <div key={f.id} className="flex items-center justify-between py-2 first:pt-0 last:pb-0 text-sm">
+                  <span className="text-white/40">{f.gwLabel}</span>
+                  <span>
+                    {isHome ? "vs" : "@"} {opponent?.name}
+                  </span>
+                  <span className="font-display font-bold">{score}</span>
+                </div>
+              );
+            })}
+          </Card>
+        )}
+      </section>
+
+      <section>
+        <SectionTitle accent>Transfer Market Balance History</SectionTitle>
+        {transactions.length === 0 ? (
+          <Card>
+            <p className="text-sm text-white/60">No transactions yet.</p>
+          </Card>
+        ) : (
+          <Card className="divide-y divide-ink-border">
+            {transactions.map((t) => (
+              <div key={t.id} className="flex items-center justify-between py-2 first:pt-0 last:pb-0 text-sm">
+                <span className="text-white/60">{t.reason}</span>
+                <span className={`font-display font-bold ${t.amount >= 0 ? "text-neon" : "text-blood"}`}>
+                  {t.amount >= 0 ? "+" : ""}
+                  {formatMoney(t.amount)}
+                </span>
+              </div>
+            ))}
+          </Card>
+        )}
+      </section>
+    </div>
+  );
+}
