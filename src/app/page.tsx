@@ -1,8 +1,8 @@
 import Link from "next/link";
 import {
   getActiveGameweek,
+  getAllFixturesDesc,
   getAllTeams,
-  getFixturesByGameweek,
   getTeamRecords,
   getTopPerformers,
 } from "@/lib/queries";
@@ -16,13 +16,13 @@ export default async function HomePage() {
   const gameweek = await getActiveGameweek();
   const teams = await getAllTeams();
   const records = await getTeamRecords();
-  const teamsById = Object.fromEntries(teams.map((t) => [t.id, t]));
 
   const standings = [...teams].sort(
     (a, b) => (records[b.id]?.points || 0) - (records[a.id]?.points || 0)
   );
 
-  const fixtures = gameweek ? await getFixturesByGameweek(gameweek.id) : [];
+  // Newest first — the strip scrolls right to reveal older results.
+  const fixtures = await getAllFixturesDesc();
   const topPerformers = gameweek ? await getTopPerformers(gameweek.id, 10) : [];
 
   return (
@@ -38,35 +38,41 @@ export default async function HomePage() {
       </section>
 
       <section>
-        <SectionTitle accent>Fixtures &amp; Results</SectionTitle>
+        <div className="mb-3 flex items-baseline justify-between">
+          <SectionTitle accent>Fixtures &amp; Results</SectionTitle>
+          {fixtures.length > 0 && (
+            <span className="text-[11px] uppercase tracking-wide text-white/30">Scroll for older →</span>
+          )}
+        </div>
         {fixtures.length === 0 ? (
           <Card>
-            <p className="text-sm text-white/60">No fixtures have been scheduled for this gameweek yet.</p>
+            <p className="text-sm text-white/60">No fixtures have been scheduled yet.</p>
           </Card>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 scrollbar-thin sm:mx-0 sm:px-0">
             {fixtures.map((f) => {
-              const home = teamsById[f.home_team_id];
-              const away = teamsById[f.away_team_id];
               const final = f.status === "final";
               return (
-                <Link key={f.id} href={`/fixtures/${f.id}`}>
-                  <Card className="h-full transition hover:border-neon/50 hover:shadow-neon">
+                <Link key={f.id} href={`/fixtures/${f.id}`} className="shrink-0 snap-start">
+                  <Card className="h-full w-64 transition hover:border-neon/50 hover:shadow-neon">
+                    <p className="mb-2 text-[10px] uppercase tracking-wide text-white/30">
+                      {f.gw_label || `Gameweek ${f.gw_number}`}
+                    </p>
                     <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 font-semibold">
-                        <TeamBadge name={home.name} color={home.color} size="sm" />
-                        {home.name}
+                      <span className="flex min-w-0 items-center gap-1.5 truncate font-semibold">
+                        <TeamBadge name={f.home_team_name} color={f.home_team_color} size="sm" />
+                        <span className="truncate">{f.home_team_name}</span>
                       </span>
-                      <span className="font-display text-lg font-bold">
+                      <span className="shrink-0 font-display text-lg font-bold">
                         {final ? f.home_score : "–"}
                       </span>
                     </div>
                     <div className="my-1 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 font-semibold">
-                        <TeamBadge name={away.name} color={away.color} size="sm" />
-                        {away.name}
+                      <span className="flex min-w-0 items-center gap-1.5 truncate font-semibold">
+                        <TeamBadge name={f.away_team_name} color={f.away_team_color} size="sm" />
+                        <span className="truncate">{f.away_team_name}</span>
                       </span>
-                      <span className="font-display text-lg font-bold">
+                      <span className="shrink-0 font-display text-lg font-bold">
                         {final ? f.away_score : "–"}
                       </span>
                     </div>

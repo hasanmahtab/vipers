@@ -15,7 +15,63 @@ body {
 }
 
 body {
+  position: relative;
   font-family: "Inter", system-ui, sans-serif;
+}
+
+/* Ambient neon glow, pinned to the viewport so it stays put while the page scrolls. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(680px circle at 8% -8%, rgba(57, 255, 20, 0.16), transparent 60%),
+    radial-gradient(560px circle at 108% 12%, rgba(255, 46, 59, 0.13), transparent 60%),
+    radial-gradient(820px circle at 50% 118%, rgba(57, 255, 20, 0.08), transparent 60%);
+  animation: ambient-pulse 9s ease-in-out infinite;
+}
+
+/* Faint scale pattern for texture, on brand for "Vipers". */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: radial-gradient(
+      circle at 0 0,
+      transparent 22px,
+      rgba(57, 255, 20, 0.035) 23px,
+      rgba(57, 255, 20, 0.035) 24px,
+      transparent 25px
+    ),
+    radial-gradient(
+      circle at 44px 0,
+      transparent 22px,
+      rgba(57, 255, 20, 0.035) 23px,
+      rgba(57, 255, 20, 0.035) 24px,
+      transparent 25px
+    );
+  background-size: 88px 44px;
+}
+
+@keyframes ambient-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none;
+  }
 }
 
 h1,
