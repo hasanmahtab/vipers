@@ -12,7 +12,7 @@ import {
   verifyLogin,
 } from "./auth";
 import { calculatePlayerMatchPoints, outcomeFor, Position, RESULT_BONUS } from "./scoring";
-import { getPlayersByTeam } from "./queries";
+import { getAllTeams, getPlayersByTeam, getUnassignedPlayers, Player, Team } from "./queries";
 import bcrypt from "bcryptjs";
 
 async function requireAdmin() {
@@ -343,6 +343,96 @@ export async function assignPlayerAction(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/teams");
   revalidatePath(`/players/${id}`);
+}
+
+const DEFAULT_SQUAD_SHAPE: Position[] = ["GK", "DEF", "DEF", "DEF", "MID", "MID", "MID", "FWD"];
+const AUTO_DRAFT_PRICE = 12.5; // 100 / 8, a neutral placeholder until the real auction sets prices.
+
+/**
+ * Temporary, pre-auction convenience: fills every team up to a full 1-3-3-1
+ * squad straight from the undrafted pool. Each team's captain (matched by
+ * name) is seated on their own team first; everyone else is snake-drafted
+ * across the teams' remaining open slots ordered by last season's points,
+ * so no team ends up stacked. Meant to be re-run (or partially run) safely —
+ * it only ever fills slots that are still empty.
+ */
+export async function autoDraftPoolEvenlyAction() {
+  await requireAdmin();
+
+  const teams = await getAllTeams();
+  const pool = await getUnassignedPlayers(); // already sorted by points desc, name
+  const squads = Object.fromEntries(
+    await Promise.all(teams.map(async (t) => [t.id, await getPlayersByTeam(t.id)] as const))
+  );
+
+  const neededQueue: Record<number, Position[]> = {};
+  for (const t of teams) {
+    const counts: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+    for (const p of squads[t.id]) if (p.position) counts[p.position]++;
+    const filled: Record<Position, number> = { ...counts };
+    neededQueue[t.id] = DEFAULT_SQUAD_SHAPE.filter((pos) => {
+      if (filled[pos] > 0) {
+        filled[pos]--;
+        return false;
+      }
+      return true;
+    });
+  }
+
+  const remainingPool = [...pool];
+  const statements: { sql: string; args: (string | number)[] }[] = [];
+
+  function popPlayerByName(name: string): Player | undefined {
+    const idx = remainingPool.findIndex((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
+    if (idx === -1) return undefined;
+    return remainingPool.splice(idx, 1)[0];
+  }
+
+  function assign(player: Player, teamId: number, position: Position) {
+    statements.push({
+      sql: "UPDATE players SET team_id = ?, position = ?, price = ? WHERE id = ?",
+      args: [teamId, position, AUTO_DRAFT_PRICE, player.id],
+    });
+    const q = neededQueue[teamId];
+    const qi = q.indexOf(position);
+    q.splice(qi !== -1 ? qi : 0, 1);
+  }
+
+  // Seat each team's captain on their own team first, if they're still in the pool.
+  for (const t of teams) {
+    if (neededQueue[t.id].length === 0) continue;
+    const captainPlayer = popPlayerByName(t.captain);
+    if (captainPlayer) {
+      const pos = neededQueue[t.id].includes("GK") ? "GK" : neededQueue[t.id][0];
+      assign(captainPlayer, t.id, pos);
+    }
+  }
+
+  // Snake-draft everyone else, by points, across whichever teams still have open slots.
+  const forward = teams.map((t) => t.id);
+  const snakeCycle = [...forward, ...[...forward].reverse()];
+  const maxGuard = remainingPool.length * snakeCycle.length + 10;
+  let cursor = 0;
+  let guard = 0;
+  while (remainingPool.length > 0 && guard < maxGuard) {
+    const teamId = snakeCycle[cursor % snakeCycle.length];
+    if (neededQueue[teamId].length > 0) {
+      const position = neededQueue[teamId][0];
+      const player = remainingPool.shift()!;
+      assign(player, teamId, position);
+    }
+    cursor++;
+    guard++;
+  }
+
+  if (statements.length > 0) {
+    const db = await getDb();
+    await db.batch(statements, "write");
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/players");
+  revalidatePath("/teams");
 }
 
 export async function unassignPlayerAction(formData: FormData) {

@@ -1,6 +1,7 @@
 import {
   addPlayerAction,
   assignPlayerAction,
+  autoDraftPoolEvenlyAction,
   deletePlayerAction,
   importPlayersCsvAction,
   unassignPlayerAction,
@@ -34,6 +35,26 @@ export default async function AdminPlayersPage() {
           goes where, assign each player a team, position, and price here — the squad shape (1 GK, 3 DEF, 3
           MID, 1 FWD) is enforced automatically.
         </p>
+        {pool.length > 0 && (
+          <form action={autoDraftPoolEvenlyAction} className="mb-4">
+            <Card className="border-neon/30 bg-neon/5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-display font-bold text-neon">Auto-draft evenly (temporary)</p>
+                  <p className="mt-1 text-xs text-white/60">
+                    Fills every team&apos;s empty slots straight from the pool — each team&apos;s captain
+                    stays on their own team, everyone else is spread out fairly by last season&apos;s
+                    points, all priced at £12.5M. Use this to get the site usable before the real auction;
+                    re-draft everyone properly afterwards (Undraft, then assign for real, below).
+                  </p>
+                </div>
+                <button className="shrink-0 rounded-md bg-neon px-4 py-2 font-display font-bold uppercase tracking-wide text-ink hover:bg-neon-glow">
+                  Auto-Draft Pool
+                </button>
+              </div>
+            </Card>
+          </form>
+        )}
         {pool.length === 0 ? (
           <Card>
             <p className="text-sm text-white/60">Every registered player has been drafted onto a team.</p>
