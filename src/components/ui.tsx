@@ -59,6 +59,48 @@ export function TeamDot({ color }: { color: string }) {
   );
 }
 
+const TEAM_LOGOS: Record<string, string> = {
+  "Blackouts FC": "/logos/blackouts-fc.jpg",
+  "Darkstar FC": "/logos/darkstar-fc.jpg",
+  Showstoppers: "/logos/showstoppers.jpg",
+  "Goli Underdogs": "/logos/goli-underdogs.jpg",
+};
+
+export const LEAGUE_LOGO = "/logos/league.jpg";
+
+export function getTeamLogo(name: string): string | undefined {
+  return TEAM_LOGOS[name];
+}
+
+const BADGE_SIZES = {
+  xs: "h-4 w-4",
+  sm: "h-6 w-6",
+  md: "h-10 w-10",
+  lg: "h-16 w-16",
+} as const;
+
+/** A team's crest if we have one on file, falling back to their color dot. */
+export function TeamBadge({
+  name,
+  color,
+  size = "xs",
+}: {
+  name: string;
+  color: string;
+  size?: keyof typeof BADGE_SIZES;
+}) {
+  const logo = getTeamLogo(name);
+  if (!logo) return <TeamDot color={color} />;
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-white ${BADGE_SIZES[size]}`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={logo} alt={`${name} crest`} className="h-full w-full object-cover" />
+    </span>
+  );
+}
+
 export function PlayerLink({
   id,
   name,
@@ -80,15 +122,17 @@ export function TeamLink({
   name,
   color,
   className = "",
+  logoSize = "xs",
 }: {
   id: number;
   name: string;
   color: string;
   className?: string;
+  logoSize?: "xs" | "sm" | "md" | "lg";
 }) {
   return (
     <Link href={`/teams/${id}`} className={`inline-flex items-center gap-1.5 transition hover:text-neon ${className}`}>
-      <TeamDot color={color} />
+      <TeamBadge name={name} color={color} size={logoSize} />
       {name}
     </Link>
   );

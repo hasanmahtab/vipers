@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { submitFixtureScoreAction } from "@/lib/actions";
 import { getFixture, getPlayersByTeam, getStatsForFixture, getTeam } from "@/lib/queries";
-import { Card, PositionBadge, SectionTitle, TeamDot } from "@/components/ui";
+import { Card, PositionBadge, SectionTitle, TeamBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,7 @@ export default async function FixtureScorePage({ params }: { params: { id: strin
         <Card>
           <div className="flex items-center justify-center gap-4">
             <div className="text-center">
-              <TeamDot color={home.color} />
+              <TeamBadge name={home.name} color={home.color} size="md" />
               <p className="mt-1 font-display font-bold">{home.name}</p>
               <input
                 name="homeScore"
@@ -40,7 +40,7 @@ export default async function FixtureScorePage({ params }: { params: { id: strin
             </div>
             <span className="font-display text-2xl text-white/30">–</span>
             <div className="text-center">
-              <TeamDot color={away.color} />
+              <TeamBadge name={away.name} color={away.color} size="md" />
               <p className="mt-1 font-display font-bold">{away.name}</p>
               <input
                 name="awayScore"
@@ -65,7 +65,7 @@ export default async function FixtureScorePage({ params }: { params: { id: strin
         ].map(({ team, players }) => (
           <Card key={team.id}>
             <div className="mb-3 flex items-center gap-2">
-              <TeamDot color={team.color} />
+              <TeamBadge name={team.name} color={team.color} />
               <h3 className="font-display text-lg font-bold">{team.name}</h3>
             </div>
             <div className="space-y-2">

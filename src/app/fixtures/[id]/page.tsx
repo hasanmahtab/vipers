@@ -6,7 +6,7 @@ import {
   getPlayersByTeam,
   getTeam,
 } from "@/lib/queries";
-import { Card, PlayerLink, PositionBadge, SectionTitle, TeamDot, TeamLink } from "@/components/ui";
+import { Card, PlayerLink, PositionBadge, SectionTitle, TeamBadge, TeamLink } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +27,15 @@ export default async function FixtureDetailPage({ params }: { params: { id: stri
   const statsByPlayer = new Map(statLines.map((s) => [s.player_id, s]));
   const final = fixture.status === "final";
 
+  // Best performers first; players who didn't play (no points at all) sink to the bottom.
+  const byPointsDesc = <T extends { id: number }>(players: T[]) =>
+    [...players].sort(
+      (a, b) => (statsByPlayer.get(b.id)?.points ?? -Infinity) - (statsByPlayer.get(a.id)?.points ?? -Infinity)
+    );
+
   const teamColumns = [
-    { team: home, players: homePlayers },
-    { team: away, players: awayPlayers },
+    { team: home, players: byPointsDesc(homePlayers) },
+    { team: away, players: byPointsDesc(awayPlayers) },
   ];
 
   return (
@@ -56,7 +62,7 @@ export default async function FixtureDetailPage({ params }: { params: { id: stri
           {teamColumns.map(({ team, players }) => (
             <section key={team.id}>
               <div className="mb-2 flex items-center gap-2">
-                <TeamDot color={team.color} />
+                <TeamBadge name={team.name} color={team.color} />
                 <h3 className="font-display text-base font-bold">{team.name}</h3>
               </div>
               <Card className="divide-y divide-ink-border">

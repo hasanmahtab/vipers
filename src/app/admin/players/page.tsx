@@ -8,7 +8,7 @@ import {
   updatePlayerAction,
 } from "@/lib/actions";
 import { getAllTeams, getPlayersByTeam, getUnassignedPlayers } from "@/lib/queries";
-import { Card, PositionBadge, SectionTitle, TeamDot, formatMoney } from "@/components/ui";
+import { Card, PositionBadge, SectionTitle, TeamBadge, formatMoney } from "@/components/ui";
 import { POSITIONS } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
@@ -134,7 +134,7 @@ export default async function AdminPlayersPage() {
               <Card key={t.id}>
                 <div className="mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <TeamDot color={t.color} />
+                    <TeamBadge name={t.name} color={t.color} />
                     <h4 className="font-display font-bold">{t.name}</h4>
                   </div>
                   <span className="text-xs text-white/40">{squad.length}/8</span>

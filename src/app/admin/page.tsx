@@ -7,7 +7,7 @@ import {
   setActiveGameweekAction,
 } from "@/lib/actions";
 import { getAllTeams, getFixturesByGameweek, getGameweeks } from "@/lib/queries";
-import { Card, SectionTitle, TeamDot } from "@/components/ui";
+import { Card, SectionTitle, TeamBadge } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { getCurrentAdmin } from "@/lib/auth";
 
@@ -123,10 +123,10 @@ export default async function AdminDashboardPage() {
                         className="flex items-center justify-between rounded-md border border-ink-border bg-ink-soft px-3 py-2 text-sm"
                       >
                         <div className="flex items-center gap-2">
-                          <TeamDot color={home?.color || "#666"} />
+                          {home && <TeamBadge name={home.name} color={home.color} />}
                           <span>{home?.name}</span>
                           <span className="text-white/40">vs</span>
-                          <TeamDot color={away?.color || "#666"} />
+                          {away && <TeamBadge name={away.name} color={away.color} />}
                           <span>{away?.name}</span>
                         </div>
                         <div className="flex items-center gap-3">

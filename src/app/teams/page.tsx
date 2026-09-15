@@ -1,5 +1,5 @@
 import { getAllTeams, getPlayersByTeam, getTeamRecords } from "@/lib/queries";
-import { Card, SectionTitle, TeamDot, formatMoney } from "@/components/ui";
+import { Card, SectionTitle, TeamBadge, formatMoney } from "@/components/ui";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export default async function TeamsPage() {
               <Card className="h-full transition hover:border-neon/50 hover:shadow-neon">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <TeamDot color={t.color} />
+                    <TeamBadge name={t.name} color={t.color} size="md" />
                     <h3 className="font-display text-lg font-bold">{t.name}</h3>
                   </div>
                   <span className="font-display text-lg font-bold text-neon">{r.points} pts</span>

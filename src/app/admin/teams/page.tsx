@@ -1,6 +1,6 @@
 import { updateTeamBudgetAction } from "@/lib/actions";
 import { getAllTeams, getTransactionsForTeam } from "@/lib/queries";
-import { Card, SectionTitle, TeamDot, formatMoney } from "@/components/ui";
+import { Card, SectionTitle, TeamBadge, formatMoney } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,7 @@ export default async function AdminTeamsPage() {
           return (
             <Card key={t.id}>
               <div className="flex items-center gap-2">
-                <TeamDot color={t.color} />
+                <TeamBadge name={t.name} color={t.color} />
                 <h3 className="font-display text-lg font-bold">{t.name}</h3>
               </div>
               <form action={updateTeamBudgetAction} className="mt-3 flex items-end gap-2">

@@ -10,7 +10,7 @@ import {
   getTotalPointsForPlayer,
   getTransactionsForTeam,
 } from "@/lib/queries";
-import { Card, PlayerLink, PositionBadge, SectionTitle, StatPill, TeamDot, formatMoney } from "@/components/ui";
+import { Card, PlayerLink, PositionBadge, SectionTitle, StatPill, TeamBadge, formatMoney } from "@/components/ui";
 import { POSITIONS } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +46,7 @@ export default async function TeamDetailPage({ params }: { params: { id: string 
     <div className="space-y-6">
       <Card className="border-2" style={{ borderColor: `${team.color}55` }}>
         <div className="flex items-center gap-3">
-          <TeamDot color={team.color} />
+          <TeamBadge name={team.name} color={team.color} size="lg" />
           <div>
             <h1 className="font-display text-2xl font-bold">{team.name}</h1>
             <p className="text-sm text-white/60">Captain: {team.captain}</p>

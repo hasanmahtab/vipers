@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LEAGUE_LOGO } from "./ui";
 
 const links = [
   { href: "/", label: "Home" },
@@ -14,8 +15,12 @@ export default function NavBar() {
       <header className="sticky top-0 z-40 border-b border-ink-border bg-ink/95 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <Link href="/" className="flex items-center gap-2 font-display text-xl font-bold">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={LEAGUE_LOGO} alt="Vipers League" className="h-full w-full object-cover" />
+            </span>
             <span className="text-neon drop-shadow-[0_0_6px_rgba(57,255,20,0.6)]">VIPERS</span>
-            <span className="text-white/70 text-sm font-body font-medium">Fantasy League</span>
+            <span className="hidden text-white/70 text-sm font-body font-medium sm:inline">Fantasy League</span>
           </Link>
           <nav className="hidden gap-6 font-display text-sm font-semibold uppercase tracking-wide sm:flex">
             {links.map((l) => (

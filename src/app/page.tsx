@@ -6,7 +6,7 @@ import {
   getTeamRecords,
   getTopPerformers,
 } from "@/lib/queries";
-import { Card, PlayerLink, PositionBadge, SectionTitle, StatPill, TeamDot, TeamLink, formatMoney } from "@/components/ui";
+import { Card, PlayerLink, PositionBadge, SectionTitle, StatPill, TeamBadge, TeamLink, formatMoney } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +54,7 @@ export default async function HomePage() {
                   <Card className="h-full transition hover:border-neon/50 hover:shadow-neon">
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-1.5 font-semibold">
-                        <TeamDot color={home.color} />
+                        <TeamBadge name={home.name} color={home.color} size="sm" />
                         {home.name}
                       </span>
                       <span className="font-display text-lg font-bold">
@@ -63,7 +63,7 @@ export default async function HomePage() {
                     </div>
                     <div className="my-1 flex items-center justify-between">
                       <span className="flex items-center gap-1.5 font-semibold">
-                        <TeamDot color={away.color} />
+                        <TeamBadge name={away.name} color={away.color} size="sm" />
                         {away.name}
                       </span>
                       <span className="font-display text-lg font-bold">
