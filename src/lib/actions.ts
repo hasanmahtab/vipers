@@ -103,9 +103,38 @@ export async function createFixtureAction(formData: FormData) {
 export async function deleteFixtureAction(formData: FormData) {
   await requireAdmin();
   const id = Number(formData.get("id"));
-  await run("DELETE FROM fixtures WHERE id = ?", [id]);
+
+  const fixture = await get<{ id: number; status: string }>("SELECT id, status FROM fixtures WHERE id = ?", [id]);
+  if (!fixture) return;
+
+  const statements: { sql: string; args: (string | number)[] }[] = [];
+
+  if (fixture.status === "final") {
+    // Reverse the win/draw/loss budget bonus this fixture handed out before removing it.
+    const txns = await all<{ team_id: number; amount: number }>(
+      "SELECT team_id, amount FROM transactions WHERE fixture_id = ?",
+      [id]
+    );
+    for (const t of txns) {
+      statements.push({
+        sql: "UPDATE teams SET budget_remaining = budget_remaining - ? WHERE id = ?",
+        args: [t.amount, t.team_id],
+      });
+    }
+    statements.push({ sql: "DELETE FROM transactions WHERE fixture_id = ?", args: [id] });
+  }
+
+  // player_stats rows cascade-delete with the fixture automatically (ON DELETE CASCADE).
+  statements.push({ sql: "DELETE FROM fixtures WHERE id = ?", args: [id] });
+
+  const db = await getDb();
+  await db.batch(statements, "write");
+
   revalidatePath("/admin");
   revalidatePath("/");
+  revalidatePath("/table");
+  revalidatePath("/teams");
+  revalidatePath("/fixtures");
 }
 
 interface PlayerLineInput {

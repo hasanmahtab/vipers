@@ -1,13 +1,14 @@
-import { getAllTeams, getPlayersByTeam, getTeamRecords, getTotalPointsByTeam } from "@/lib/queries";
+import { getAllTeams, getPlayersByTeam, getTeamRecords } from "@/lib/queries";
 import { Card, SectionTitle, TeamDot, formatMoney } from "@/components/ui";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
+const EMPTY_RECORD = { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0 };
+
 export default async function TeamsPage() {
   const teams = await getAllTeams();
   const records = await getTeamRecords();
-  const totals = await getTotalPointsByTeam();
   const squadCounts = Object.fromEntries(
     await Promise.all(teams.map(async (t) => [t.id, (await getPlayersByTeam(t.id)).length] as const))
   );
@@ -17,7 +18,7 @@ export default async function TeamsPage() {
       <SectionTitle accent>Vipers League Teams</SectionTitle>
       <div className="grid gap-4 sm:grid-cols-2">
         {teams.map((t) => {
-          const r = records[t.id] || { played: 0, won: 0, drawn: 0, lost: 0 };
+          const r = records[t.id] || EMPTY_RECORD;
           return (
             <Link key={t.id} href={`/teams/${t.id}`}>
               <Card className="h-full transition hover:border-neon/50 hover:shadow-neon">
@@ -26,7 +27,7 @@ export default async function TeamsPage() {
                     <TeamDot color={t.color} />
                     <h3 className="font-display text-lg font-bold">{t.name}</h3>
                   </div>
-                  <span className="font-display text-lg font-bold text-neon">{totals[t.id] || 0} pts</span>
+                  <span className="font-display text-lg font-bold text-neon">{r.points} pts</span>
                 </div>
                 <p className="mt-1 text-sm text-white/60">Captain: {t.captain}</p>
                 <div className="mt-3 flex items-center justify-between text-sm">

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import {
   getAllTeams,
   getFixturesByGameweek,
@@ -26,7 +27,7 @@ export default async function TeamDetailPage({ params }: { params: { id: string 
     getGameweeks(),
   ]);
   const teamsById = Object.fromEntries(allTeams.map((t) => [t.id, t]));
-  const record = records[team.id] || { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0 };
+  const record = records[team.id] || { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0 };
 
   const playerPointsEntries = await Promise.all(
     players.map(async (p) => [p.id, await getTotalPointsForPlayer(p.id)] as const)
@@ -113,13 +114,17 @@ export default async function TeamDetailPage({ params }: { params: { id: string 
               const score =
                 f.status === "final" ? `${isHome ? f.home_score : f.away_score} - ${isHome ? f.away_score : f.home_score}` : "vs";
               return (
-                <div key={f.id} className="flex items-center justify-between py-2 first:pt-0 last:pb-0 text-sm">
+                <Link
+                  key={f.id}
+                  href={`/fixtures/${f.id}`}
+                  className="flex items-center justify-between py-2 text-sm transition hover:text-neon first:pt-0 last:pb-0"
+                >
                   <span className="text-white/40">{f.gwLabel}</span>
                   <span>
                     {isHome ? "vs" : "@"} {opponent?.name}
                   </span>
                   <span className="font-display font-bold">{score}</span>
-                </div>
+                </Link>
               );
             })}
           </Card>

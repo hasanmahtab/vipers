@@ -1,16 +1,21 @@
-import { getAllTeams, getTeamRecords, getTotalPointsByTeam } from "@/lib/queries";
+import { getAllTeams, getTeamRecords } from "@/lib/queries";
 import { Card, SectionTitle, TeamLink, formatMoney } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
+const EMPTY_RECORD = { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0 };
+
 export default async function TablePage() {
   const teams = await getAllTeams();
   const records = await getTeamRecords();
-  const totals = await getTotalPointsByTeam();
 
   const rows = teams
-    .map((t) => ({ team: t, record: records[t.id] || { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0 }, points: totals[t.id] || 0 }))
-    .sort((a, b) => b.points - a.points);
+    .map((t) => ({ team: t, record: records[t.id] || EMPTY_RECORD }))
+    .sort(
+      (a, b) =>
+        b.record.points - a.record.points ||
+        b.record.goalsFor - b.record.goalsAgainst - (a.record.goalsFor - a.record.goalsAgainst)
+    );
 
   return (
     <div className="space-y-6">
@@ -29,7 +34,7 @@ export default async function TablePage() {
               <th className="pb-2 text-center">GA</th>
               <th className="pb-2 text-center">GD</th>
               <th className="pb-2 text-center">Budget</th>
-              <th className="pb-2 text-right">Fantasy Pts</th>
+              <th className="pb-2 text-right">Pts</th>
             </tr>
           </thead>
           <tbody>
@@ -47,22 +52,11 @@ export default async function TablePage() {
                 <td className="py-2 text-center">{row.record.goalsAgainst}</td>
                 <td className="py-2 text-center">{row.record.goalsFor - row.record.goalsAgainst}</td>
                 <td className="py-2 text-center">{formatMoney(row.team.budget_remaining)}</td>
-                <td className="py-2 text-right font-display font-bold text-neon">{row.points}</td>
+                <td className="py-2 text-right font-display font-bold text-neon">{row.record.points}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </Card>
-
-      <Card>
-        <h3 className="mb-2 font-display text-sm font-bold uppercase tracking-wide text-white/70">How points work</h3>
-        <ul className="space-y-1 text-sm text-white/60">
-          <li>• +2 pts for playing in a fixture</li>
-          <li>• Clean sheet: GK +5, DEF +5, MID +1</li>
-          <li>• Goal: GK +10, DEF +6, MID +5, FWD +4</li>
-          <li>• Assist: +3 pts</li>
-          <li>• −1 pt for every 2 goals conceded (GK &amp; DEF only)</li>
-        </ul>
       </Card>
     </div>
   );

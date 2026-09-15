@@ -1,5 +1,5 @@
 import { all, get } from "./db";
-import { Position } from "./scoring";
+import { LEAGUE_POINTS, Position } from "./scoring";
 
 export interface Team {
   id: number;
@@ -105,6 +105,46 @@ export function getStatsForFixture(fixtureId: number): Promise<PlayerStatRow[]> 
   return all<PlayerStatRow>("SELECT * FROM player_stats WHERE fixture_id = ?", [fixtureId]);
 }
 
+export interface FixtureStatLine extends PlayerStatRow {
+  player_name: string;
+  position: Position;
+  team_id: number;
+}
+
+/** Match-detail rows: every player_stats row for a fixture, joined with the scorer's name/position/team. */
+export function getFixtureStatLines(fixtureId: number): Promise<FixtureStatLine[]> {
+  return all<FixtureStatLine>(
+    `SELECT ps.*, pl.name as player_name, pl.position as position, pl.team_id as team_id
+     FROM player_stats ps
+     JOIN players pl ON pl.id = ps.player_id
+     WHERE ps.fixture_id = ?
+     ORDER BY ps.points DESC`,
+    [fixtureId]
+  );
+}
+
+export interface FixtureWithTeams extends Fixture {
+  home_team_name: string;
+  home_team_color: string;
+  away_team_name: string;
+  away_team_color: string;
+  gw_number: number;
+  gw_label: string | null;
+}
+
+export function getAllFixturesDesc(): Promise<FixtureWithTeams[]> {
+  return all<FixtureWithTeams>(
+    `SELECT f.*, ht.name as home_team_name, ht.color as home_team_color,
+            at.name as away_team_name, at.color as away_team_color,
+            g.number as gw_number, g.label as gw_label
+     FROM fixtures f
+     JOIN teams ht ON ht.id = f.home_team_id
+     JOIN teams at ON at.id = f.away_team_id
+     JOIN gameweeks g ON g.id = f.gameweek_id
+     ORDER BY g.number DESC, f.id DESC`
+  );
+}
+
 export async function getStatsForPlayer(
   playerId: number
 ): Promise<(PlayerStatRow & { fixture: Fixture; gameweek: Gameweek })[]> {
@@ -171,6 +211,7 @@ export interface TeamRecord {
   lost: number;
   goalsFor: number;
   goalsAgainst: number;
+  points: number;
 }
 
 export async function getTeamRecords(): Promise<Record<number, TeamRecord>> {
@@ -179,7 +220,7 @@ export async function getTeamRecords(): Promise<Record<number, TeamRecord>> {
   const records: Record<number, TeamRecord> = {};
   const ensure = (id: number) => {
     if (!records[id]) {
-      records[id] = { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0 };
+      records[id] = { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0 };
     }
     return records[id];
   };
@@ -204,6 +245,10 @@ export async function getTeamRecords(): Promise<Record<number, TeamRecord>> {
       home.drawn += 1;
       away.drawn += 1;
     }
+  }
+
+  for (const r of Object.values(records)) {
+    r.points = r.won * LEAGUE_POINTS.WIN + r.drawn * LEAGUE_POINTS.DRAW + r.lost * LEAGUE_POINTS.LOSS;
   }
 
   return records;

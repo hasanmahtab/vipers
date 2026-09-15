@@ -5,23 +5,25 @@ import {
   getFixturesByGameweek,
   getTeamRecords,
   getTopPerformers,
-  getTotalPointsByTeam,
 } from "@/lib/queries";
-import { Card, PlayerLink, PositionBadge, SectionTitle, StatPill, TeamLink, formatMoney } from "@/components/ui";
+import { Card, PlayerLink, PositionBadge, SectionTitle, StatPill, TeamDot, TeamLink, formatMoney } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
+
+const EMPTY_RECORD = { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0 };
 
 export default async function HomePage() {
   const gameweek = await getActiveGameweek();
   const teams = await getAllTeams();
   const records = await getTeamRecords();
-  const totals = await getTotalPointsByTeam();
   const teamsById = Object.fromEntries(teams.map((t) => [t.id, t]));
 
-  const standings = [...teams].sort((a, b) => (totals[b.id] || 0) - (totals[a.id] || 0));
+  const standings = [...teams].sort(
+    (a, b) => (records[b.id]?.points || 0) - (records[a.id]?.points || 0)
+  );
 
   const fixtures = gameweek ? await getFixturesByGameweek(gameweek.id) : [];
-  const topPerformers = gameweek ? await getTopPerformers(gameweek.id, 5) : [];
+  const topPerformers = gameweek ? await getTopPerformers(gameweek.id, 10) : [];
 
   return (
     <div className="space-y-8">
@@ -48,23 +50,31 @@ export default async function HomePage() {
               const away = teamsById[f.away_team_id];
               const final = f.status === "final";
               return (
-                <Card key={f.id}>
-                  <div className="flex items-center justify-between">
-                    <TeamLink id={home.id} name={home.name} color={home.color} className="font-semibold" />
-                    <span className="font-display text-lg font-bold">
-                      {final ? f.home_score : "–"}
-                    </span>
-                  </div>
-                  <div className="my-1 flex items-center justify-between">
-                    <TeamLink id={away.id} name={away.name} color={away.color} className="font-semibold" />
-                    <span className="font-display text-lg font-bold">
-                      {final ? f.away_score : "–"}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-[11px] uppercase tracking-wide text-white/40">
-                    {final ? "Full time" : "Scheduled"}
-                  </p>
-                </Card>
+                <Link key={f.id} href={`/fixtures/${f.id}`}>
+                  <Card className="h-full transition hover:border-neon/50 hover:shadow-neon">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 font-semibold">
+                        <TeamDot color={home.color} />
+                        {home.name}
+                      </span>
+                      <span className="font-display text-lg font-bold">
+                        {final ? f.home_score : "–"}
+                      </span>
+                    </div>
+                    <div className="my-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 font-semibold">
+                        <TeamDot color={away.color} />
+                        {away.name}
+                      </span>
+                      <span className="font-display text-lg font-bold">
+                        {final ? f.away_score : "–"}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-[11px] uppercase tracking-wide text-white/40">
+                      {final ? "Full time — view details" : "Scheduled"}
+                    </p>
+                  </Card>
+                </Link>
               );
             })}
           </div>
@@ -80,18 +90,19 @@ export default async function HomePage() {
         ) : (
           <Card className="divide-y divide-ink-border">
             {topPerformers.map((p: any, i: number) => (
-              <div key={p.id} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
-                <div className="flex items-center gap-3">
-                  <span className="w-5 text-center font-display text-sm text-white/40">{i + 1}</span>
-                  <div>
-                    <PlayerLink id={p.player_id} name={p.player_name} className="font-semibold" />
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <PositionBadge position={p.position} />
-                      <TeamLink id={p.team_id} name={p.team_name} color={p.team_color} className="text-xs text-white/50" />
-                    </div>
+              <div key={p.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                <span className="w-5 shrink-0 text-center font-display text-sm text-white/40">{i + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <PlayerLink id={p.player_id} name={p.player_name} className="font-semibold" />
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <PositionBadge position={p.position} />
+                    <TeamLink id={p.team_id} name={p.team_name} color={p.team_color} className="text-xs text-white/50" />
+                    {p.goals > 0 && <span className="text-[11px] text-white/50">⚽ {p.goals}</span>}
+                    {p.assists > 0 && <span className="text-[11px] text-white/50">🅰️ {p.assists}</span>}
+                    {p.clean_sheet === 1 && <span className="text-[11px] text-white/50">🧤 CS</span>}
                   </div>
                 </div>
-                <span className="font-display text-lg font-bold text-neon">{p.points} pts</span>
+                <span className="shrink-0 font-display text-lg font-bold text-neon">{p.points} pts</span>
               </div>
             ))}
           </Card>
@@ -113,7 +124,7 @@ export default async function HomePage() {
             </thead>
             <tbody>
               {standings.map((t, i) => {
-                const r = records[t.id] || { played: 0, won: 0, drawn: 0, lost: 0 };
+                const r = records[t.id] || EMPTY_RECORD;
                 return (
                   <tr key={t.id} className="border-t border-ink-border">
                     <td className="py-2">
@@ -127,7 +138,7 @@ export default async function HomePage() {
                       {r.won}-{r.drawn}-{r.lost}
                     </td>
                     <td className="py-2 text-center text-white/70">{formatMoney(t.budget_remaining)}</td>
-                    <td className="py-2 text-right font-display font-bold text-neon">{totals[t.id] || 0}</td>
+                    <td className="py-2 text-right font-display font-bold text-neon">{r.points}</td>
                   </tr>
                 );
               })}
@@ -144,7 +155,8 @@ export default async function HomePage() {
       </div>
 
       <p className="text-center text-xs text-white/30">
-        Full points breakdown on every <Link href="/teams" className="text-neon underline">team</Link> and player page.
+        Full points breakdown on every <Link href="/teams" className="text-neon underline">team</Link> and player page. See all past results on the{" "}
+        <Link href="/fixtures" className="text-neon underline">match history</Link> page.
       </p>
     </div>
   );

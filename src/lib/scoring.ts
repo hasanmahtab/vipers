@@ -106,3 +106,10 @@ export function outcomeFor(teamScore: number, opponentScore: number): MatchOutco
   if (teamScore < opponentScore) return "LOSS";
   return "DRAW";
 }
+
+/** League table points for the standings — separate from fantasy scoring. */
+export const LEAGUE_POINTS: Record<MatchOutcome, number> = {
+  WIN: 2,
+  DRAW: 1,
+  LOSS: 0,
+};

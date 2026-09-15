@@ -8,6 +8,7 @@ import {
 } from "@/lib/actions";
 import { getAllTeams, getFixturesByGameweek, getGameweeks } from "@/lib/queries";
 import { Card, SectionTitle, TeamDot } from "@/components/ui";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { getCurrentAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -139,12 +140,19 @@ export default async function AdminDashboardPage() {
                           <Link href={`/admin/fixtures/${f.id}`} className="text-neon underline">
                             {f.status === "final" ? "Edit score" : "Enter score"}
                           </Link>
-                          {f.status !== "final" && (
-                            <form action={deleteFixtureAction}>
-                              <input type="hidden" name="id" value={f.id} />
-                              <button className="text-blood underline">Remove</button>
-                            </form>
-                          )}
+                          <form action={deleteFixtureAction}>
+                            <input type="hidden" name="id" value={f.id} />
+                            <ConfirmButton
+                              className="text-blood underline"
+                              confirmMessage={
+                                f.status === "final"
+                                  ? "Delete this played match? This removes every player's stats and points from it, and reverses the win/draw/loss budget bonus it paid out. This cannot be undone."
+                                  : "Remove this fixture?"
+                              }
+                            >
+                              Delete
+                            </ConfirmButton>
+                          </form>
                         </div>
                       </div>
                     );
