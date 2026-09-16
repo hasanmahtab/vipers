@@ -101,6 +101,45 @@ export function TeamBadge({
   );
 }
 
+const AVATAR_SIZES = {
+  sm: "h-8 w-8 text-[11px]",
+  md: "h-10 w-10 text-xs",
+} as const;
+
+/** A player's photo if one's on file, falling back to their initials. */
+export function PlayerAvatar({
+  name,
+  photoUrl,
+  size = "sm",
+}: {
+  name: string;
+  photoUrl?: string | null;
+  size?: keyof typeof AVATAR_SIZES;
+}) {
+  const sizeClasses = AVATAR_SIZES[size];
+  if (photoUrl) {
+    return (
+      <span className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink-soft ring-1 ring-white/15 ${sizeClasses}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={photoUrl} alt={name} className="h-full w-full object-cover" />
+      </span>
+    );
+  }
+  const initials = name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("");
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-ink-soft font-display font-bold text-white/70 ring-1 ring-white/15 ${sizeClasses}`}
+    >
+      {initials}
+    </span>
+  );
+}
+
 export function PlayerLink({
   id,
   name,
