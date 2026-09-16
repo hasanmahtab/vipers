@@ -254,17 +254,62 @@ export async function getTeamRecords(): Promise<Record<number, TeamRecord>> {
   return records;
 }
 
-export function getTopPerformers(gameweekId: number, limit = 8) {
-  return all<any>(
-    `SELECT ps.*, pl.name as player_name, pl.position as position, pl.team_id as team_id, t.name as team_name, t.color as team_color
-     FROM player_stats ps
-     JOIN fixtures f ON f.id = ps.fixture_id
-     JOIN players pl ON pl.id = ps.player_id
+export interface CumulativePerformerRow {
+  player_id: number;
+  player_name: string;
+  position: Position;
+  team_id: number;
+  team_name: string;
+  team_color: string;
+  total_points: number;
+  total_goals: number;
+  total_assists: number;
+  total_clean_sheets: number;
+}
+
+/**
+ * Season-to-date leaderboard: every player's cumulative points/goals/assists/
+ * clean sheets through (and including) the given gameweek number — not just
+ * that single week's contribution.
+ */
+export function getCumulativeTopPerformers(uptoGwNumber: number, limit = 10): Promise<CumulativePerformerRow[]> {
+  return all<CumulativePerformerRow>(
+    `SELECT pl.id as player_id, pl.name as player_name, pl.position as position,
+            pl.team_id as team_id, t.name as team_name, t.color as team_color,
+            COALESCE(SUM(ps.points), 0) as total_points,
+            COALESCE(SUM(ps.goals), 0) as total_goals,
+            COALESCE(SUM(ps.assists), 0) as total_assists,
+            COALESCE(SUM(ps.clean_sheet), 0) as total_clean_sheets
+     FROM players pl
      JOIN teams t ON t.id = pl.team_id
-     WHERE f.gameweek_id = ?
-     ORDER BY ps.points DESC
+     JOIN player_stats ps ON ps.player_id = pl.id
+     JOIN fixtures f ON f.id = ps.fixture_id
+     JOIN gameweeks g ON g.id = f.gameweek_id
+     WHERE g.number <= ?
+     GROUP BY pl.id
+     ORDER BY total_points DESC, total_goals DESC, pl.name ASC
      LIMIT ?`,
-    [gameweekId, limit]
+    [uptoGwNumber, limit]
+  );
+}
+
+export interface PlayerWithPoints extends Player {
+  team_name: string | null;
+  team_color: string | null;
+  total_points: number;
+}
+
+/** Every drafted player ranked by cumulative season fantasy points — the FPL points table. */
+export function getFplPointsTable(): Promise<PlayerWithPoints[]> {
+  return all<PlayerWithPoints>(
+    `SELECT pl.*, t.name as team_name, t.color as team_color,
+            COALESCE(SUM(ps.points), 0) as total_points
+     FROM players pl
+     JOIN teams t ON t.id = pl.team_id
+     LEFT JOIN player_stats ps ON ps.player_id = pl.id
+     WHERE pl.team_id IS NOT NULL
+     GROUP BY pl.id
+     ORDER BY total_points DESC, pl.name ASC`
   );
 }
 

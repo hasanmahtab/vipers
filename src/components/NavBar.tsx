@@ -15,7 +15,7 @@ export default function NavBar() {
       <header className="sticky top-0 z-40 border-b border-ink-border bg-ink/95 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <Link href="/" className="flex items-center gap-2 font-display text-xl font-bold">
-            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink-soft ring-1 ring-white/15">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={LEAGUE_LOGO} alt="Vipers League" className="h-full w-full object-cover" />
             </span>

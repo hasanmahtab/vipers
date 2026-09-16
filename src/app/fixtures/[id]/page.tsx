@@ -90,7 +90,7 @@ export default async function FixtureDetailPage({ params }: { params: { id: stri
                           {s.assists > 0 && <span>🅰️ {s.assists} assist{s.assists > 1 ? "s" : ""}</span>}
                           {s.clean_sheet === 1 && <span>🧤 Clean sheet</span>}
                           {s.blue_cards > 0 && <span>🟦 {s.blue_cards} blue card{s.blue_cards > 1 ? "s" : ""}</span>}
-                          {(p.position === "GK" || p.position === "DEF") && s.goals_conceded > 0 && (
+                          {p.position === "GK" && s.goals_conceded > 0 && (
                             <span>{s.goals_conceded} conceded</span>
                           )}
                         </div>

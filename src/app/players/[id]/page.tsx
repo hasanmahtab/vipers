@@ -79,7 +79,7 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
                   <th className="pb-2 text-center">G</th>
                   <th className="pb-2 text-center">A</th>
                   <th className="pb-2 text-center">CS</th>
-                  <th className="pb-2 text-center">Conceded</th>
+                  {player.position === "GK" && <th className="pb-2 text-center">Conceded</th>}
                   <th className="pb-2 text-right">Pts</th>
                 </tr>
               </thead>
@@ -91,7 +91,7 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
                     <td className="py-2 text-center">{h.goals}</td>
                     <td className="py-2 text-center">{h.assists}</td>
                     <td className="py-2 text-center">{h.clean_sheet ? "Yes" : "-"}</td>
-                    <td className="py-2 text-center">{h.goals_conceded}</td>
+                    {player.position === "GK" && <td className="py-2 text-center">{h.goals_conceded}</td>}
                     <td className="py-2 text-right font-display font-bold text-neon">{h.points}</td>
                   </tr>
                 ))}

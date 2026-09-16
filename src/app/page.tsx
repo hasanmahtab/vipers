@@ -3,8 +3,9 @@ import {
   getActiveGameweek,
   getAllFixturesDesc,
   getAllTeams,
+  getCumulativeTopPerformers,
+  getGameweeks,
   getTeamRecords,
-  getTopPerformers,
 } from "@/lib/queries";
 import { Card, PlayerLink, PositionBadge, SectionTitle, StatPill, TeamBadge, TeamLink, formatMoney } from "@/components/ui";
 
@@ -12,10 +13,11 @@ export const dynamic = "force-dynamic";
 
 const EMPTY_RECORD = { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0 };
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: { gw?: string } }) {
   const gameweek = await getActiveGameweek();
   const teams = await getAllTeams();
   const records = await getTeamRecords();
+  const gameweeks = await getGameweeks();
 
   const standings = [...teams].sort(
     (a, b) => (records[b.id]?.points || 0) - (records[a.id]?.points || 0)
@@ -23,7 +25,12 @@ export default async function HomePage() {
 
   // Newest first — the strip scrolls right to reveal older results.
   const fixtures = await getAllFixturesDesc();
-  const topPerformers = gameweek ? await getTopPerformers(gameweek.id, 10) : [];
+
+  const currentGwNumber = gameweek?.number ?? gameweeks[gameweeks.length - 1]?.number ?? 1;
+  const requestedGw = searchParams.gw ? Number(searchParams.gw) : currentGwNumber;
+  const selectedGwNumber = gameweeks.some((g) => g.number === requestedGw) ? requestedGw : currentGwNumber;
+
+  const topPerformers = gameweeks.length > 0 ? await getCumulativeTopPerformers(selectedGwNumber, 10) : [];
 
   return (
     <div className="space-y-8">
@@ -88,27 +95,52 @@ export default async function HomePage() {
       </section>
 
       <section>
-        <SectionTitle accent>Top Performers This Week</SectionTitle>
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <SectionTitle accent>Top Performers</SectionTitle>
+          <span className="text-[11px] uppercase tracking-wide text-white/30">Cumulative season points</span>
+        </div>
+        {gameweeks.length > 1 && (
+          <div className="-mx-4 mb-3 flex gap-1.5 overflow-x-auto px-4 scrollbar-thin sm:mx-0 sm:px-0">
+            {gameweeks.map((gw) => {
+              const isSelected = gw.number === selectedGwNumber;
+              const isCurrent = gw.number === currentGwNumber;
+              return (
+                <Link
+                  key={gw.id}
+                  href={gw.number === currentGwNumber ? "/" : `/?gw=${gw.number}`}
+                  className={`shrink-0 rounded-full border px-3 py-1 font-display text-xs font-semibold uppercase tracking-wide transition ${
+                    isSelected
+                      ? "border-neon bg-neon/10 text-neon"
+                      : "border-ink-border text-white/50 hover:border-neon/40 hover:text-white"
+                  }`}
+                >
+                  GW{gw.number}
+                  {isCurrent ? " · Current" : ""}
+                </Link>
+              );
+            })}
+          </div>
+        )}
         {topPerformers.length === 0 ? (
           <Card>
-            <p className="text-sm text-white/60">No stats entered for this gameweek yet.</p>
+            <p className="text-sm text-white/60">No stats entered yet through this gameweek.</p>
           </Card>
         ) : (
           <Card className="divide-y divide-ink-border">
-            {topPerformers.map((p: any, i: number) => (
-              <div key={p.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+            {topPerformers.map((p, i) => (
+              <div key={p.player_id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
                 <span className="w-5 shrink-0 text-center font-display text-sm text-white/40">{i + 1}</span>
                 <div className="min-w-0 flex-1">
                   <PlayerLink id={p.player_id} name={p.player_name} className="font-semibold" />
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <PositionBadge position={p.position} />
                     <TeamLink id={p.team_id} name={p.team_name} color={p.team_color} className="text-xs text-white/50" />
-                    {p.goals > 0 && <span className="text-[11px] text-white/50">⚽ {p.goals}</span>}
-                    {p.assists > 0 && <span className="text-[11px] text-white/50">🅰️ {p.assists}</span>}
-                    {p.clean_sheet === 1 && <span className="text-[11px] text-white/50">🧤 CS</span>}
+                    {p.total_goals > 0 && <span className="text-[11px] text-white/50">⚽ {p.total_goals}</span>}
+                    {p.total_assists > 0 && <span className="text-[11px] text-white/50">🅰️ {p.total_assists}</span>}
+                    {p.total_clean_sheets > 0 && <span className="text-[11px] text-white/50">🧤 {p.total_clean_sheets}</span>}
                   </div>
                 </div>
-                <span className="shrink-0 font-display text-lg font-bold text-neon">{p.points} pts</span>
+                <span className="shrink-0 font-display text-lg font-bold text-neon">{p.total_points} pts</span>
               </div>
             ))}
           </Card>

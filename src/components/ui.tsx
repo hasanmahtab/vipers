@@ -93,7 +93,7 @@ export function TeamBadge({
   if (!logo) return <TeamDot color={color} />;
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-white ${BADGE_SIZES[size]}`}
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink-soft ring-1 ring-white/15 ${BADGE_SIZES[size]}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={logo} alt={`${name} crest`} className="h-full w-full object-cover" />
