@@ -13,7 +13,7 @@ import { POSITIONS } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
 
-const POSITION_LIMITS: Record<string, number> = { GK: 1, DEF: 3, MID: 3, FWD: 1 };
+const POSITION_LIMITS: Record<string, number> = { GK: 1, DEF: 3, MID: 2, FWD: 2 };
 
 export default async function AdminPlayersPage() {
   const teams = await getAllTeams();
@@ -32,8 +32,8 @@ export default async function AdminPlayersPage() {
         </h3>
         <p className="mb-3 text-sm text-white/60">
           Everyone registered for the league, with last season&apos;s points. Once the auction decides who
-          goes where, assign each player a team, position, and price here — the squad shape (1 GK, 3 DEF, 3
-          MID, 1 FWD) is enforced automatically.
+          goes where, assign each player a team, position, and price here — the squad shape (1 GK, 3 DEF, 2
+          MID, 2 FWD) is enforced automatically.
         </p>
         {pool.length > 0 && (
           <form action={autoDraftPoolEvenlyAction} className="mb-4">

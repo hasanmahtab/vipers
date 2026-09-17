@@ -306,9 +306,9 @@ export async function deleteAdminUserAction(formData: FormData) {
 // ---------- Players ----------
 
 const VALID_POSITIONS: Position[] = ["GK", "DEF", "MID", "FWD"];
-const POSITION_LIMITS: Record<Position, number> = { GK: 1, DEF: 3, MID: 3, FWD: 1 };
+const POSITION_LIMITS: Record<Position, number> = { GK: 1, DEF: 3, MID: 2, FWD: 2 };
 
-/** Throws if putting `position` on `teamId` would break the 1-3-3-1 squad shape. */
+/** Throws if putting `position` on `teamId` would break the 1-3-2-2 squad shape. */
 async function assertSquadSlotAvailable(teamId: number, position: Position, excludePlayerId?: number) {
   const row = excludePlayerId
     ? await get<{ c: number }>(
@@ -321,7 +321,7 @@ async function assertSquadSlotAvailable(teamId: number, position: Position, excl
       ]);
   if (Number(row?.c ?? 0) >= POSITION_LIMITS[position]) {
     throw new Error(
-      `That team already has ${POSITION_LIMITS[position]} ${position} player(s) — the squad shape is 1 GK, 3 DEF, 3 MID, 1 FWD.`
+      `That team already has ${POSITION_LIMITS[position]} ${position} player(s) — the squad shape is 1 GK, 3 DEF, 2 MID, 2 FWD.`
     );
   }
 }
@@ -374,11 +374,11 @@ export async function assignPlayerAction(formData: FormData) {
   revalidatePath(`/players/${id}`);
 }
 
-const DEFAULT_SQUAD_SHAPE: Position[] = ["GK", "DEF", "DEF", "DEF", "MID", "MID", "MID", "FWD"];
+const DEFAULT_SQUAD_SHAPE: Position[] = ["GK", "DEF", "DEF", "DEF", "MID", "MID", "FWD", "FWD"];
 const AUTO_DRAFT_PRICE = 12.5; // 100 / 8, a neutral placeholder until the real auction sets prices.
 
 /**
- * Temporary, pre-auction convenience: fills every team up to a full 1-3-3-1
+ * Temporary, pre-auction convenience: fills every team up to a full 1-3-2-2
  * squad straight from the undrafted pool. Each team's captain (matched by
  * name) is seated on their own team first; everyone else is snake-drafted
  * across the teams' remaining open slots ordered by last season's points,

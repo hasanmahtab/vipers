@@ -1,5 +1,5 @@
 import { getAllTeams, getFplPointsTable, getTeamRecords } from "@/lib/queries";
-import { Card, PlayerLink, PositionBadge, SectionTitle, TeamLink, formatMoney } from "@/components/ui";
+import { Card, PlayerAvatar, PlayerLink, PositionBadge, SectionTitle, TeamLink, formatMoney } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +76,7 @@ export default async function TablePage() {
             {fplTable.map((p, i) => (
               <div key={p.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
                 <span className="w-6 shrink-0 text-center font-display text-sm text-white/40">{i + 1}</span>
+                <PlayerAvatar name={p.name} photoUrl={p.photo_url} />
                 <div className="min-w-0 flex-1">
                   <PlayerLink id={p.id} name={p.name} className="font-semibold" />
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">

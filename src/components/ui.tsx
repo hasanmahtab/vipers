@@ -104,9 +104,53 @@ export function TeamBadge({
 const AVATAR_SIZES = {
   sm: "h-8 w-8 text-[11px]",
   md: "h-10 w-10 text-xs",
+  lg: "h-16 w-16 text-lg",
 } as const;
 
-/** A player's photo if one's on file, falling back to their initials. */
+// Static name -> photo lookup, same pattern as TEAM_LOGOS: ships with the
+// code so player photos show up with no database write needed. A player's
+// own photo_url (once the admin UI supports uploading one) always wins.
+const PLAYER_PHOTOS: Record<string, string> = {
+  "Aafeef Kabir": "/players/aafeef-kabir.jpg",
+  "Adeeb Ahmed": "/players/adeeb-ahmed.jpg",
+  "Aiman Nawar Chowdhury": "/players/aiman-nawar-chowdhury.jpg",
+  "Arafatul Mamur": "/players/arafatul-mamur.jpg",
+  "Azmi Hoque": "/players/azmi-hoque.jpg",
+  "Faiad Rehman": "/players/faiad-rehman.jpg",
+  "Fairooz Abir": "/players/fairooz-abir.jpg",
+  "Farhan Labib": "/players/farhan-labib.jpg",
+  "Hasan Mahtab": "/players/hasan-mahtab.jpg",
+  "Hasnan Siddique Sunve": "/players/hasnan-siddique-sunve.jpg",
+  "Hussain Yeasin": "/players/hussain-yeasin.jpg",
+  "Ishmam Rahman": "/players/ishmam-rahman.jpg",
+  "Jawad Anis": "/players/jawad-anis.jpg",
+  "K M Chisty": "/players/k-m-chisty.jpg",
+  "Masrur Rahman": "/players/masrur-rahman.jpg",
+  "Mirza Mohammed": "/players/mirza-mohammed.jpg",
+  "Mubashir Rahman": "/players/mubashir-rahman.jpg",
+  "Munem Morshed": "/players/munem-morshed.jpg",
+  "Nabil Shahriar": "/players/nabil-shahriar.jpg",
+  "Navid Rahman": "/players/navid-rahman.jpg",
+  "Md Rafiu Hossain": "/players/md-rafiu-hossain.jpg",
+  "Rahmat Ullah": "/players/rahmat-ullah.jpg",
+  "Rayhan Hussain": "/players/rayhan-hussain.jpg",
+  "Riyad Zaman": "/players/riyad-zaman.jpg",
+  "Rishik Roy": "/players/rishik-roy.jpg",
+  "Sabit Khan": "/players/sabit-khan.jpg",
+  "Rizvi Ibrahim": "/players/rizvi-ibrahim.jpg",
+  "Sajid Khalid": "/players/sajid-khalid.jpg",
+  "Shadman Sakib": "/players/shadman-sakib.jpg",
+  "Samin Haque": "/players/samin-haque.jpg",
+  "Shahriar Anwar Khan": "/players/shahriar-anwar-khan.jpg",
+  "Tahsin Islam": "/players/tahsin-islam.jpg",
+  "Taqi Rahman": "/players/taqi-rahman.jpg",
+};
+
+export function getPlayerPhoto(name: string): string | undefined {
+  return PLAYER_PHOTOS[name];
+}
+
+/** A player's photo if one's on file (their own, or a shipped default by name), falling back to initials. */
 export function PlayerAvatar({
   name,
   photoUrl,
@@ -117,11 +161,12 @@ export function PlayerAvatar({
   size?: keyof typeof AVATAR_SIZES;
 }) {
   const sizeClasses = AVATAR_SIZES[size];
-  if (photoUrl) {
+  const resolvedPhoto = photoUrl || getPlayerPhoto(name);
+  if (resolvedPhoto) {
     return (
       <span className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink-soft ring-1 ring-white/15 ${sizeClasses}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={photoUrl} alt={name} className="h-full w-full object-cover" />
+        <img src={resolvedPhoto} alt={name} className="h-full w-full object-cover" />
       </span>
     );
   }

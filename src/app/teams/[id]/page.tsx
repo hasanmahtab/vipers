@@ -72,7 +72,7 @@ export default async function TeamDetailPage({ params }: { params: { id: string 
                 <div className="mb-2 flex items-center gap-2">
                   <PositionBadge position={pos} />
                   <span className="text-xs uppercase tracking-wide text-white/40">
-                    {pos === "GK" ? "1 required" : pos === "FWD" ? "1 required" : "3 required"}
+                    {pos === "GK" ? "1 required" : pos === "DEF" ? "3 required" : "2 required"}
                   </span>
                 </div>
                 <div className="divide-y divide-ink-border">

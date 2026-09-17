@@ -76,7 +76,7 @@ time the app starts — there was no need to re-type them.
 
 1. **After the auction**, go to `/admin/players` → **Draft Pool**. For each
    player, pick their team, position, and auction price, then hit Draft.
-   The squad shape (1 GK, 3 DEF, 3 MID, 1 FWD per team) is enforced
+   The squad shape (1 GK, 3 DEF, 2 MID, 2 FWD per team) is enforced
    automatically, so a mis-click is caught immediately. Made a mistake?
    "Undraft" a player from their team's squad card to send them back to the
    pool.
