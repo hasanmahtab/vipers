@@ -12,7 +12,7 @@ import {
   verifyLogin,
 } from "./auth";
 import { calculatePlayerMatchPoints, outcomeFor, Position, RESULT_BONUS } from "./scoring";
-import { getAllTeams, getPlayersByTeam, getUnassignedPlayers, Player, Team } from "./queries";
+import { getPlayersByTeam } from "./queries";
 import bcrypt from "bcryptjs";
 
 async function requireAdmin() {
@@ -374,94 +374,113 @@ export async function assignPlayerAction(formData: FormData) {
   revalidatePath(`/players/${id}`);
 }
 
-const DEFAULT_SQUAD_SHAPE: Position[] = ["GK", "DEF", "DEF", "DEF", "MID", "MID", "FWD", "FWD"];
-const AUTO_DRAFT_PRICE = 12.5; // 100 / 8, a neutral placeholder until the real auction sets prices.
+// The final confirmed registration list ahead of the auction: every
+// returning player's locked-in position for the season (captains included).
+// Team assignment for everyone except captains is decided at auction, so
+// this resets non-captains back to the pool rather than guessing a team.
+const FINAL_SQUAD_POSITIONS: Record<string, Position> = {
+  "Samin Haque": "FWD",
+  "Sabit Khan": "MID",
+  "Arafatul Mamur": "DEF",
+  "Riyad Zaman": "DEF",
+  "Masrur Rahman": "GK",
+  "Jawad Anis": "GK",
+  "Rayhan Hussain": "GK",
+  "Rizvi Ibrahim": "DEF",
+  "Farhan Labib": "DEF",
+  "Rahmat Ullah": "DEF",
+  "Azmi Hoque": "DEF",
+  "Hasnan Siddique Sunve": "DEF",
+  "Mubashir Rahman": "DEF",
+  "Rishik Roy": "DEF",
+  "K M Chisty": "DEF",
+  "Md Rafiu Hossain": "DEF",
+  "Aafeef Kabir": "DEF",
+  "Mirza Mohammed": "MID",
+  "Faiad Rehman": "MID",
+  "Aiman Nawar Chowdhury": "MID",
+  "Shahriar Anwar Khan": "MID",
+  "Fairooz Abir": "MID",
+  "Taqi Rahman": "MID",
+  "Tahsin Islam": "FWD",
+  "Munem Morshed": "FWD",
+  "Ishmam Rahman": "FWD",
+  "Hussain Yeasin": "FWD",
+  "Hasan Mahtab": "FWD",
+  "Adeeb Ahmed": "FWD",
+  "Navid Rahman": "FWD",
+};
+
+const CAPTAIN_TEAMS: Record<string, string> = {
+  "Samin Haque": "Blackouts FC",
+  "Sabit Khan": "Darkstar FC",
+  "Arafatul Mamur": "Goli Underdogs",
+  "Riyad Zaman": "Showstoppers",
+};
+
+// New registrants not in the original list, placed on a team now per admin
+// request — the real auction will set their final team and price.
+const NEW_PLAYERS: { name: string; position: Position; team: string }[] = [
+  { name: "Nabil Shahriar", position: "GK", team: "Blackouts FC" },
+  { name: "Shadman Sakib", position: "MID", team: "Darkstar FC" },
+];
+
+const PLAYER_TO_REMOVE = "Mahfuz Haque";
+const WAITLISTED_PLAYERS = ["Sajid Khalid"];
 
 /**
- * Temporary, pre-auction convenience: fills every team up to a full 1-3-2-2
- * squad straight from the undrafted pool. Each team's captain (matched by
- * name) is seated on their own team first; everyone else is snake-drafted
- * across the teams' remaining open slots ordered by last season's points,
- * so no team ends up stacked. Meant to be re-run (or partially run) safely —
- * it only ever fills slots that are still empty.
+ * One-time sync to the confirmed final squad list: removes a player who
+ * dropped out, adds new registrants, sets everyone's locked-in position for
+ * the season, and sends every non-captain back to the undrafted pool ready
+ * for the real auction (undoing the earlier placeholder auto-draft). Safe
+ * to re-run.
  */
-export async function autoDraftPoolEvenlyAction() {
+export async function syncFinalSquadAction() {
   await requireAdmin();
+  const db = await getDb();
 
-  const teams = await getAllTeams();
-  const pool = await getUnassignedPlayers(); // already sorted by points desc, name
-  const squads = Object.fromEntries(
-    await Promise.all(teams.map(async (t) => [t.id, await getPlayersByTeam(t.id)] as const))
-  );
+  const teams = await all<{ id: number; name: string }>("SELECT id, name FROM teams");
+  const teamIdByName = new Map(teams.map((t) => [t.name, t.id]));
 
-  const neededQueue: Record<number, Position[]> = {};
-  for (const t of teams) {
-    const counts: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
-    for (const p of squads[t.id]) if (p.position) counts[p.position]++;
-    const filled: Record<Position, number> = { ...counts };
-    neededQueue[t.id] = DEFAULT_SQUAD_SHAPE.filter((pos) => {
-      if (filled[pos] > 0) {
-        filled[pos]--;
-        return false;
-      }
-      return true;
-    });
-  }
+  const statements: { sql: string; args: (string | number | null)[] }[] = [];
 
-  const remainingPool = [...pool];
-  const statements: { sql: string; args: (string | number)[] }[] = [];
+  statements.push({ sql: "DELETE FROM players WHERE name = ?", args: [PLAYER_TO_REMOVE] });
 
-  function popPlayerByName(name: string): Player | undefined {
-    const idx = remainingPool.findIndex((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
-    if (idx === -1) return undefined;
-    return remainingPool.splice(idx, 1)[0];
-  }
-
-  function assign(player: Player, teamId: number, position: Position) {
+  for (const [name, position] of Object.entries(FINAL_SQUAD_POSITIONS)) {
+    const captainTeam = CAPTAIN_TEAMS[name];
+    const teamId = captainTeam ? teamIdByName.get(captainTeam) ?? null : null;
     statements.push({
-      sql: "UPDATE players SET team_id = ?, position = ?, price = ? WHERE id = ?",
-      args: [teamId, position, AUTO_DRAFT_PRICE, player.id],
+      sql: "UPDATE players SET position = ?, team_id = ?, is_captain = ?, price = 0 WHERE name = ?",
+      args: [position, teamId, captainTeam ? 1 : 0, name],
     });
-    const q = neededQueue[teamId];
-    const qi = q.indexOf(position);
-    q.splice(qi !== -1 ? qi : 0, 1);
   }
 
-  // Seat each team's captain on their own team first, if they're still in the pool.
-  for (const t of teams) {
-    if (neededQueue[t.id].length === 0) continue;
-    const captainPlayer = popPlayerByName(t.captain);
-    if (captainPlayer) {
-      const pos = neededQueue[t.id].includes("GK") ? "GK" : neededQueue[t.id][0];
-      assign(captainPlayer, t.id, pos);
-    }
+  for (const name of WAITLISTED_PLAYERS) {
+    statements.push({
+      sql: "UPDATE players SET position = NULL, team_id = NULL, is_captain = 0, price = 0 WHERE name = ?",
+      args: [name],
+    });
   }
 
-  // Snake-draft everyone else, by points, across whichever teams still have open slots.
-  const forward = teams.map((t) => t.id);
-  const snakeCycle = [...forward, ...[...forward].reverse()];
-  const maxGuard = remainingPool.length * snakeCycle.length + 10;
-  let cursor = 0;
-  let guard = 0;
-  while (remainingPool.length > 0 && guard < maxGuard) {
-    const teamId = snakeCycle[cursor % snakeCycle.length];
-    if (neededQueue[teamId].length > 0) {
-      const position = neededQueue[teamId][0];
-      const player = remainingPool.shift()!;
-      assign(player, teamId, position);
-    }
-    cursor++;
-    guard++;
-  }
+  await db.batch(statements, "write");
 
-  if (statements.length > 0) {
-    const db = await getDb();
-    await db.batch(statements, "write");
-  }
+  const existing = await all<{ name: string }>(
+    `SELECT name FROM players WHERE name IN (${NEW_PLAYERS.map(() => "?").join(",")})`,
+    NEW_PLAYERS.map((p) => p.name)
+  );
+  const existingNames = new Set(existing.map((r) => r.name));
+
+  const inserts = NEW_PLAYERS.filter((p) => !existingNames.has(p.name)).map((p) => ({
+    sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (?, ?, ?, 0, 0, 0)",
+    args: [teamIdByName.get(p.team) ?? null, p.name, p.position] as (string | number | null)[],
+  }));
+  if (inserts.length > 0) await db.batch(inserts, "write");
 
   revalidatePath("/admin");
   revalidatePath("/admin/players");
   revalidatePath("/teams");
+  revalidatePath("/table");
+  revalidatePath("/");
 }
 
 export async function unassignPlayerAction(formData: FormData) {
