@@ -425,11 +425,12 @@ const NEW_PLAYERS: { name: string; position: Position; team: string }[] = [
   { name: "Shadman Sakib", position: "MID", team: "Darkstar FC" },
 ];
 
-const PLAYER_TO_REMOVE = "Mahfuz Haque";
-const WAITLISTED_PLAYERS = ["Sajid Khalid"];
+// Not in the league this season — Shadman Sakib (see NEW_PLAYERS above)
+// plays in Sajid Khalid's place.
+const PLAYERS_TO_REMOVE = ["Mahfuz Haque", "Sajid Khalid"];
 
 /**
- * One-time sync to the confirmed final squad list: removes a player who
+ * One-time sync to the confirmed final squad list: removes players who
  * dropped out, adds new registrants, sets everyone's locked-in position for
  * the season, and sends every non-captain back to the undrafted pool ready
  * for the real auction (undoing the earlier placeholder auto-draft). Safe
@@ -444,7 +445,9 @@ export async function syncFinalSquadAction() {
 
   const statements: { sql: string; args: (string | number | null)[] }[] = [];
 
-  statements.push({ sql: "DELETE FROM players WHERE name = ?", args: [PLAYER_TO_REMOVE] });
+  for (const name of PLAYERS_TO_REMOVE) {
+    statements.push({ sql: "DELETE FROM players WHERE name = ?", args: [name] });
+  }
 
   for (const [name, position] of Object.entries(FINAL_SQUAD_POSITIONS)) {
     const captainTeam = CAPTAIN_TEAMS[name];
@@ -452,13 +455,6 @@ export async function syncFinalSquadAction() {
     statements.push({
       sql: "UPDATE players SET position = ?, team_id = ?, is_captain = ?, price = 0 WHERE name = ?",
       args: [position, teamId, captainTeam ? 1 : 0, name],
-    });
-  }
-
-  for (const name of WAITLISTED_PLAYERS) {
-    statements.push({
-      sql: "UPDATE players SET position = NULL, team_id = NULL, is_captain = 0, price = 0 WHERE name = ?",
-      args: [name],
     });
   }
 

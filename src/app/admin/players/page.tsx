@@ -41,10 +41,11 @@ export default async function AdminPlayersPage() {
               <div>
                 <p className="font-display font-bold text-neon">Sync to Final Squad List (one-time)</p>
                 <p className="mt-1 text-xs text-white/60">
-                  Applies the confirmed roster: removes Mahfuz Haque (not playing), adds Nabil Shahriar (GK)
-                  and Shadman Sakib (MID) onto Blackouts FC and Darkstar FC for now, sets everyone&apos;s
-                  locked-in position for the season, and sends every non-captain back to the pool below —
-                  ready for the real auction to assign team and price. Safe to click more than once.
+                  Applies the confirmed roster: removes Mahfuz Haque and Sajid Khalid (not playing), adds
+                  Nabil Shahriar (GK) and Shadman Sakib (MID, in Sajid&apos;s place) onto Blackouts FC and
+                  Darkstar FC for now, sets everyone&apos;s locked-in position for the season, and sends
+                  every non-captain back to the pool below — ready for the real auction to assign team and
+                  price. Safe to click more than once.
                 </p>
               </div>
               <button className="shrink-0 rounded-md bg-neon px-4 py-2 font-display font-bold uppercase tracking-wide text-ink hover:bg-neon-glow">

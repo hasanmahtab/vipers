@@ -5,13 +5,13 @@
 @import url("https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap");
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
 body {
-  background-color: #0a0b0d;
-  color: #eef1f4;
+  background-color: #f4f5fa;
+  color: #170b2e;
 }
 
 body {
@@ -19,59 +19,15 @@ body {
   font-family: "Inter", system-ui, sans-serif;
 }
 
-/* Ambient neon glow, pinned to the viewport so it stays put while the page scrolls. */
+/* A soft purple/blue wash pinned to the viewport, subtle enough for a clean light theme. */
 body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -2;
-  pointer-events: none;
-  background:
-    radial-gradient(680px circle at 8% -8%, rgba(57, 255, 20, 0.16), transparent 60%),
-    radial-gradient(560px circle at 108% 12%, rgba(255, 46, 59, 0.13), transparent 60%),
-    radial-gradient(820px circle at 50% 118%, rgba(57, 255, 20, 0.08), transparent 60%);
-  animation: ambient-pulse 9s ease-in-out infinite;
-}
-
-/* Faint scale pattern for texture, on brand for "Vipers". */
-body::after {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  opacity: 0.5;
-  background-image: radial-gradient(
-      circle at 0 0,
-      transparent 22px,
-      rgba(57, 255, 20, 0.035) 23px,
-      rgba(57, 255, 20, 0.035) 24px,
-      transparent 25px
-    ),
-    radial-gradient(
-      circle at 44px 0,
-      transparent 22px,
-      rgba(57, 255, 20, 0.035) 23px,
-      rgba(57, 255, 20, 0.035) 24px,
-      transparent 25px
-    );
-  background-size: 88px 44px;
-}
-
-@keyframes ambient-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  body::before {
-    animation: none;
-  }
+  background: radial-gradient(720px circle at 10% -10%, rgba(55, 0, 60, 0.06), transparent 60%),
+    radial-gradient(620px circle at 108% 0%, rgba(4, 100, 255, 0.06), transparent 60%);
 }
 
 h1,
@@ -84,8 +40,8 @@ h4,
 }
 
 ::selection {
-  background: #39ff14;
-  color: #0a0b0d;
+  background: #37003c;
+  color: #ffffff;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
@@ -93,6 +49,6 @@ h4,
   width: 6px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #262b33;
+  background: #d5d8e8;
   border-radius: 999px;
 }

@@ -47,12 +47,12 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-2xl border border-neon/30 bg-gradient-to-br from-ink-card to-ink-soft p-5 shadow-neon">
-        <p className="font-display text-xs uppercase tracking-widest text-neon">
+      <section className="rounded-2xl bg-gradient-to-br from-[#37003c] via-[#3f2172] to-[#0453e0] p-5 shadow-neon">
+        <p className="font-display text-xs uppercase tracking-widest text-[#ffffff]/70">
           {gameweek ? gameweek.label || `Gameweek ${gameweek.number}` : "Season not started"}
         </p>
-        <h1 className="mt-1 font-display text-2xl font-bold sm:text-3xl">This Week in the Vipers League</h1>
-        <p className="mt-1 text-sm text-white/60">
+        <h1 className="mt-1 font-display text-2xl font-bold text-[#ffffff] sm:text-3xl">This Week in the Vipers League</h1>
+        <p className="mt-1 text-sm text-[#ffffff]/80">
           Live scores, standings, and top performers — updated by the league admin after every match.
         </p>
       </section>

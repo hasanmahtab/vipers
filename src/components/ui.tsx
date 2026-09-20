@@ -138,7 +138,6 @@ const PLAYER_PHOTOS: Record<string, string> = {
   "Rishik Roy": "/players/rishik-roy.jpg",
   "Sabit Khan": "/players/sabit-khan.jpg",
   "Rizvi Ibrahim": "/players/rizvi-ibrahim.jpg",
-  "Sajid Khalid": "/players/sajid-khalid.jpg",
   "Shadman Sakib": "/players/shadman-sakib.jpg",
   "Samin Haque": "/players/samin-haque.jpg",
   "Shahriar Anwar Khan": "/players/shahriar-anwar-khan.jpg",
