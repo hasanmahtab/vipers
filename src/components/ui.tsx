@@ -12,7 +12,7 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-xl border border-ink-border bg-ink-card p-4 shadow-lg shadow-black/30 ${className}`}
+      className={`rounded-xl border border-ink-border bg-ink-card p-4 shadow-lg shadow-[#37003c]/[0.07] ${className}`}
       style={style}
     >
       {children}
@@ -93,7 +93,7 @@ export function TeamBadge({
   if (!logo) return <TeamDot color={color} />;
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink-soft ring-1 ring-white/15 ${BADGE_SIZES[size]}`}
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink-soft shadow-sm ring-2 ring-[#ffffff] ring-offset-1 ring-offset-neon/10 transition hover:scale-105 ${BADGE_SIZES[size]}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={logo} alt={`${name} crest`} className="h-full w-full object-cover" />
@@ -163,7 +163,7 @@ export function PlayerAvatar({
   const resolvedPhoto = photoUrl || getPlayerPhoto(name);
   if (resolvedPhoto) {
     return (
-      <span className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink-soft ring-1 ring-white/15 ${sizeClasses}`}>
+      <span className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink-soft shadow-sm ring-2 ring-[#ffffff] ring-offset-1 ring-offset-neon/10 transition hover:scale-105 ${sizeClasses}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={resolvedPhoto} alt={name} className="h-full w-full object-cover" />
       </span>
@@ -177,7 +177,7 @@ export function PlayerAvatar({
     .join("");
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-ink-soft font-display font-bold text-white/70 ring-1 ring-white/15 ${sizeClasses}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-neon to-neon-glow font-display font-bold text-[#ffffff] shadow-sm ring-2 ring-[#ffffff] ring-offset-1 ring-offset-neon/10 ${sizeClasses}`}
     >
       {initials}
     </span>
@@ -221,7 +221,32 @@ export function TeamLink({
   );
 }
 
+const MEDAL_STYLES = [
+  "bg-gradient-to-br from-yellow-300 to-yellow-500 text-yellow-900 shadow-sm shadow-yellow-500/40",
+  "bg-gradient-to-br from-gray-200 to-gray-400 text-gray-800 shadow-sm shadow-gray-400/40",
+  "bg-gradient-to-br from-amber-500 to-amber-700 text-amber-50 shadow-sm shadow-amber-600/40",
+];
+
+/** Rank 1-3 get a medal-colored badge; everyone else gets a plain number. */
+export function RankBadge({ rank, size = "w-5 h-5 text-[11px]" }: { rank: number; size?: string }) {
+  const medal = MEDAL_STYLES[rank - 1];
+  if (medal) {
+    return (
+      <span className={`inline-flex shrink-0 items-center justify-center rounded-full font-display font-bold ${size} ${medal}`}>
+        {rank}
+      </span>
+    );
+  }
+  return <span className={`shrink-0 text-center font-display text-sm text-white/40 ${size.split(" ")[0]}`}>{rank}</span>;
+}
+
 export function StatPill({ label, value, tone = "default" }: { label: string; value: string | number; tone?: "default" | "neon" | "blood" }) {
+  const containerClasses =
+    tone === "neon"
+      ? "border-neon/25 bg-gradient-to-br from-neon/10 to-[#0453e0]/10 shadow-sm shadow-neon/10"
+      : tone === "blood"
+      ? "border-blood/25 bg-blood/5"
+      : "border-ink-border bg-ink-soft";
   const toneClasses =
     tone === "neon"
       ? "text-neon"
@@ -229,7 +254,7 @@ export function StatPill({ label, value, tone = "default" }: { label: string; va
       ? "text-blood"
       : "text-white";
   return (
-    <div className="flex flex-col items-center rounded-lg border border-ink-border bg-ink-soft px-3 py-2 min-w-[72px]">
+    <div className={`flex min-w-[72px] flex-col items-center rounded-lg border px-3 py-2 transition hover:-translate-y-0.5 ${containerClasses}`}>
       <span className={`font-display text-xl font-bold ${toneClasses}`}>{value}</span>
       <span className="text-[10px] uppercase tracking-wide text-white/50">{label}</span>
     </div>

@@ -11,6 +11,7 @@ import {
   PlayerAvatar,
   PlayerLink,
   PositionBadge,
+  RankBadge,
   SectionTitle,
   StatPill,
   TeamBadge,
@@ -47,14 +48,18 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-2xl bg-gradient-to-br from-[#37003c] via-[#3f2172] to-[#0453e0] p-5 shadow-neon">
-        <p className="font-display text-xs uppercase tracking-widest text-[#ffffff]/70">
-          {gameweek ? gameweek.label || `Gameweek ${gameweek.number}` : "Season not started"}
-        </p>
-        <h1 className="mt-1 font-display text-2xl font-bold text-[#ffffff] sm:text-3xl">This Week in the Vipers League</h1>
-        <p className="mt-1 text-sm text-[#ffffff]/80">
-          Live scores, standings, and top performers — updated by the league admin after every match.
-        </p>
+      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#37003c] via-[#3f2172] to-[#0453e0] p-5 shadow-neon">
+        <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-[#0453e0] opacity-40 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-[#37003c] opacity-50 blur-3xl" />
+        <div className="relative">
+          <p className="font-display text-xs uppercase tracking-widest text-[#ffffff]/70">
+            {gameweek ? gameweek.label || `Gameweek ${gameweek.number}` : "Season not started"}
+          </p>
+          <h1 className="mt-1 font-display text-2xl font-bold text-[#ffffff] sm:text-3xl">This Week in the Vipers League</h1>
+          <p className="mt-1 text-sm text-[#ffffff]/80">
+            Live scores, standings, and top performers — updated by the league admin after every match.
+          </p>
+        </div>
       </section>
 
       <section>
@@ -120,7 +125,7 @@ export default async function HomePage() {
           <Card className="divide-y divide-ink-border">
             {topPerformers.map((p, i) => (
               <div key={p.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-                <span className="w-5 shrink-0 text-center font-display text-sm text-white/40">{i + 1}</span>
+                <RankBadge rank={i + 1} />
                 <PlayerAvatar name={p.name} photoUrl={p.photo_url} />
                 <div className="min-w-0 flex-1">
                   <PlayerLink id={p.id} name={p.name} className="font-semibold" />
@@ -152,7 +157,7 @@ export default async function HomePage() {
               <div className="divide-y divide-ink-border">
                 {topScorers.map((p, i) => (
                   <div key={p.id} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
-                    <span className="w-4 shrink-0 text-center font-display text-sm text-white/40">{i + 1}</span>
+                    <RankBadge rank={i + 1} size="w-4 h-4 text-[10px]" />
                     <PlayerAvatar name={p.name} photoUrl={p.photo_url} />
                     <div className="min-w-0 flex-1">
                       <PlayerLink id={p.id} name={p.name} className="block truncate text-sm font-semibold" />
@@ -175,7 +180,7 @@ export default async function HomePage() {
               <div className="divide-y divide-ink-border">
                 {topAssisters.map((p, i) => (
                   <div key={p.id} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
-                    <span className="w-4 shrink-0 text-center font-display text-sm text-white/40">{i + 1}</span>
+                    <RankBadge rank={i + 1} size="w-4 h-4 text-[10px]" />
                     <PlayerAvatar name={p.name} photoUrl={p.photo_url} />
                     <div className="min-w-0 flex-1">
                       <PlayerLink id={p.id} name={p.name} className="block truncate text-sm font-semibold" />
@@ -212,7 +217,7 @@ export default async function HomePage() {
                   <tr key={t.id} className="border-t border-ink-border">
                     <td className="py-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-white/40 w-4">{i + 1}</span>
+                        <RankBadge rank={i + 1} size="w-5 h-5 text-[11px]" />
                         <TeamLink id={t.id} name={t.name} color={t.color} className="font-semibold" />
                       </div>
                     </td>

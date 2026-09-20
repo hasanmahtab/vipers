@@ -1,5 +1,5 @@
 import { getAllTeams, getFplPointsTable, getTeamRecords } from "@/lib/queries";
-import { Card, PlayerAvatar, PlayerLink, PositionBadge, SectionTitle, TeamLink, formatMoney } from "@/components/ui";
+import { Card, PlayerAvatar, PlayerLink, PositionBadge, RankBadge, SectionTitle, TeamLink, formatMoney } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +42,9 @@ export default async function TablePage() {
             <tbody>
               {rows.map((row, i) => (
                 <tr key={row.team.id} className="border-t border-ink-border">
-                  <td className="py-2 text-white/40">{i + 1}</td>
+                  <td className="py-2">
+                    <RankBadge rank={i + 1} />
+                  </td>
                   <td className="py-2">
                     <TeamLink id={row.team.id} name={row.team.name} color={row.team.color} className="font-semibold" />
                   </td>
@@ -75,7 +77,7 @@ export default async function TablePage() {
           <Card className="divide-y divide-ink-border">
             {fplTable.map((p, i) => (
               <div key={p.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-                <span className="w-6 shrink-0 text-center font-display text-sm text-white/40">{i + 1}</span>
+                <RankBadge rank={i + 1} />
                 <PlayerAvatar name={p.name} photoUrl={p.photo_url} />
                 <div className="min-w-0 flex-1">
                   <PlayerLink id={p.id} name={p.name} className="font-semibold" />
