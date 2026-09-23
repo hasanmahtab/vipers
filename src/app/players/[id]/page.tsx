@@ -21,11 +21,11 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
   return (
     <div className="space-y-6">
       <Card>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
             <PlayerAvatar name={player.name} photoUrl={player.photo_url} size="lg" />
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 {player.position ? (
                   <>
                     <PositionBadge position={player.position} />
@@ -42,7 +42,7 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
                   </span>
                 )}
               </div>
-              <h1 className="mt-1 font-display text-2xl font-bold">{player.name}</h1>
+              <h1 className="mt-1 break-words font-display text-2xl font-bold">{player.name}</h1>
               {team ? (
                 <TeamLink id={team.id} name={team.name} color={team.color} className="mt-1 text-sm text-white/60" />
               ) : (
@@ -50,7 +50,7 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
               )}
             </div>
           </div>
-          <div className="text-right shrink-0">
+          <div className="shrink-0 sm:text-right">
             <p className="font-display text-3xl font-bold text-neon">{totalPoints}</p>
             <p className="text-[11px] uppercase tracking-wide text-white/40">points this season</p>
           </div>

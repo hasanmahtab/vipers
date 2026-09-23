@@ -120,16 +120,16 @@ export default async function AdminDashboardPage() {
                     return (
                       <div
                         key={f.id}
-                        className="flex items-center justify-between rounded-md border border-ink-border bg-ink-soft px-3 py-2 text-sm"
+                        className="flex flex-col gap-2 rounded-md border border-ink-border bg-ink-soft px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
                       >
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                           {home && <TeamBadge name={home.name} color={home.color} />}
-                          <span>{home?.name}</span>
+                          <span className="truncate">{home?.name}</span>
                           <span className="text-white/40">vs</span>
                           {away && <TeamBadge name={away.name} color={away.color} />}
-                          <span>{away?.name}</span>
+                          <span className="truncate">{away?.name}</span>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex shrink-0 flex-wrap items-center gap-3">
                           {f.status === "final" ? (
                             <span className="font-display font-bold">
                               {f.home_score} - {f.away_score}

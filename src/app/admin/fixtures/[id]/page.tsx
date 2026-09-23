@@ -75,51 +75,55 @@ export default async function FixtureScorePage({ params }: { params: { id: strin
                 return (
                   <div
                     key={p.id}
-                    className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-2 rounded-md border border-ink-border bg-ink-soft px-3 py-2 text-sm sm:grid-cols-[1fr_auto_auto_auto_auto]"
+                    className="flex flex-col gap-2 rounded-md border border-ink-border bg-ink-soft px-3 py-2 text-sm sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-center"
                   >
-                    <div className="flex items-center gap-2 truncate">
-                      <PositionBadge position={p.position!} />
-                      <span className="truncate">{p.name}</span>
+                    <div className="flex min-w-0 items-center justify-between gap-2 sm:justify-start">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <PositionBadge position={p.position!} />
+                        <span className="truncate">{p.name}</span>
+                      </span>
+                      <label className="flex shrink-0 items-center gap-1 text-xs text-white/60">
+                        <input
+                          type="checkbox"
+                          name={`played_${p.id}`}
+                          defaultChecked={existing ? existing.played === 1 : false}
+                          className="h-4 w-4 accent-neon"
+                        />
+                        Played
+                      </label>
                     </div>
-                    <label className="flex items-center gap-1 text-xs text-white/60">
-                      <input
-                        type="checkbox"
-                        name={`played_${p.id}`}
-                        defaultChecked={existing ? existing.played === 1 : false}
-                        className="h-4 w-4 accent-neon"
-                      />
-                      Played
-                    </label>
-                    <label className="flex items-center gap-1 text-xs text-white/60">
-                      <input
-                        type="number"
-                        min={0}
-                        name={`goals_${p.id}`}
-                        defaultValue={existing?.goals ?? 0}
-                        className="w-14 rounded border border-ink-border bg-ink px-1.5 py-1 text-center outline-none focus:border-neon"
-                      />
-                      Goals
-                    </label>
-                    <label className="flex items-center gap-1 text-xs text-white/60">
-                      <input
-                        type="number"
-                        min={0}
-                        name={`assists_${p.id}`}
-                        defaultValue={existing?.assists ?? 0}
-                        className="w-14 rounded border border-ink-border bg-ink px-1.5 py-1 text-center outline-none focus:border-neon"
-                      />
-                      Assists
-                    </label>
-                    <label className="flex items-center gap-1 text-xs text-white/60">
-                      <input
-                        type="number"
-                        min={0}
-                        name={`blue_${p.id}`}
-                        defaultValue={existing?.blue_cards ?? 0}
-                        className="w-14 rounded border border-ink-border bg-ink px-1.5 py-1 text-center outline-none focus:border-neon"
-                      />
-                      Blue
-                    </label>
+                    <div className="grid grid-cols-3 gap-2 sm:contents">
+                      <label className="flex flex-col items-center gap-1 text-[11px] text-white/60 sm:flex-row sm:text-xs">
+                        <input
+                          type="number"
+                          min={0}
+                          name={`goals_${p.id}`}
+                          defaultValue={existing?.goals ?? 0}
+                          className="w-full rounded border border-ink-border bg-ink px-1.5 py-1 text-center outline-none focus:border-neon sm:w-14"
+                        />
+                        Goals
+                      </label>
+                      <label className="flex flex-col items-center gap-1 text-[11px] text-white/60 sm:flex-row sm:text-xs">
+                        <input
+                          type="number"
+                          min={0}
+                          name={`assists_${p.id}`}
+                          defaultValue={existing?.assists ?? 0}
+                          className="w-full rounded border border-ink-border bg-ink px-1.5 py-1 text-center outline-none focus:border-neon sm:w-14"
+                        />
+                        Assists
+                      </label>
+                      <label className="flex flex-col items-center gap-1 text-[11px] text-white/60 sm:flex-row sm:text-xs">
+                        <input
+                          type="number"
+                          min={0}
+                          name={`blue_${p.id}`}
+                          defaultValue={existing?.blue_cards ?? 0}
+                          className="w-full rounded border border-ink-border bg-ink px-1.5 py-1 text-center outline-none focus:border-neon sm:w-14"
+                        />
+                        Blue
+                      </label>
+                    </div>
                   </div>
                 );
               })}

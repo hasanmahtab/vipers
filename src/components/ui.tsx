@@ -11,8 +11,11 @@ export function Card({
   style?: React.CSSProperties;
 }) {
   return (
+    // min-w-0 stops this from forcing a flex/grid track wider than its
+    // container when content inside can't otherwise shrink (a long name,
+    // a row of stat labels) — a common source of mobile horizontal overflow.
     <div
-      className={`rounded-xl border border-ink-border bg-ink-card p-4 shadow-lg shadow-[#37003c]/[0.07] ${className}`}
+      className={`min-w-0 rounded-xl border border-ink-border bg-ink-card p-4 shadow-lg shadow-[#37003c]/[0.07] ${className}`}
       style={style}
     >
       {children}

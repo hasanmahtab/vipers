@@ -425,8 +425,11 @@ const NEW_PLAYERS: { name: string; position: Position; team: string }[] = [
   { name: "Shadman Sakib", position: "MID", team: "Darkstar FC" },
 ];
 
-// Not in the league this season — Shadman Sakib (see NEW_PLAYERS above)
-// plays in Sajid Khalid's place.
+// Not in the league this season — replaced by the new registrants above:
+// Nabil Shahriar plays in Mahfuz Haque's place, Shadman Sakib in Sajid
+// Khalid's. (These same replacements also run automatically on every
+// server start via reconcileRosterChanges in db.ts, so this sync button
+// isn't the only thing that applies them.)
 const PLAYERS_TO_REMOVE = ["Mahfuz Haque", "Sajid Khalid"];
 
 /**

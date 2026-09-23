@@ -140,41 +140,44 @@ async function migrate(db: Client) {
   await reconcileRosterChanges(db);
 }
 
-// Sajid Khalid dropped out of the league; Shadman Sakib plays in his place
-// on Darkstar FC. Runs on every server start (not just when an admin clicks
-// "Sync Final Squad") so this correction always takes effect the moment a
-// deploy goes out, regardless of whether the sync button gets clicked.
-// Both halves are idempotent and safe to re-run indefinitely.
-async function reconcileRosterChanges(db: Client) {
-  const sajid = await db.execute({
-    sql: "SELECT id FROM players WHERE name = ?",
-    args: ["Sajid Khalid"],
-  });
-  if (sajid.rows.length > 0) {
-    const id = sajid.rows[0].id as unknown as number;
-    await db.batch(
-      [
-        { sql: "DELETE FROM player_stats WHERE player_id = ?", args: [id] },
-        { sql: "DELETE FROM players WHERE id = ?", args: [id] },
-      ],
-      "write"
-    );
-  }
+// Players who dropped out of the league and who they were replaced by.
+// Runs on every server start (not just when an admin clicks "Sync Final
+// Squad") so a roster correction always takes effect the moment a deploy
+// goes out, regardless of whether the sync button gets clicked. Every
+// entry is idempotent and safe to re-run indefinitely.
+const ROSTER_REPLACEMENTS: Array<{
+  outName: string;
+  inName: string;
+  position: "GK" | "DEF" | "MID" | "FWD";
+  team: string;
+}> = [
+  { outName: "Sajid Khalid", inName: "Shadman Sakib", position: "MID", team: "Darkstar FC" },
+  { outName: "Mahfuz Haque", inName: "Nabil Shahriar", position: "GK", team: "Blackouts FC" },
+];
 
-  const shadman = await db.execute({
-    sql: "SELECT id FROM players WHERE name = ?",
-    args: ["Shadman Sakib"],
-  });
-  if (shadman.rows.length === 0) {
-    const darkstar = await db.execute({
-      sql: "SELECT id FROM teams WHERE name = ?",
-      args: ["Darkstar FC"],
-    });
-    const teamId = (darkstar.rows[0]?.id as unknown as number) ?? null;
-    await db.execute({
-      sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (?, 'Shadman Sakib', 'MID', 0, 0, 0)",
-      args: [teamId],
-    });
+async function reconcileRosterChanges(db: Client) {
+  for (const { outName, inName, position, team } of ROSTER_REPLACEMENTS) {
+    const dropped = await db.execute({ sql: "SELECT id FROM players WHERE name = ?", args: [outName] });
+    if (dropped.rows.length > 0) {
+      const id = dropped.rows[0].id as unknown as number;
+      await db.batch(
+        [
+          { sql: "DELETE FROM player_stats WHERE player_id = ?", args: [id] },
+          { sql: "DELETE FROM players WHERE id = ?", args: [id] },
+        ],
+        "write"
+      );
+    }
+
+    const replacement = await db.execute({ sql: "SELECT id FROM players WHERE name = ?", args: [inName] });
+    if (replacement.rows.length === 0) {
+      const teamRow = await db.execute({ sql: "SELECT id FROM teams WHERE name = ?", args: [team] });
+      const teamId = (teamRow.rows[0]?.id as unknown as number) ?? null;
+      await db.execute({
+        sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (?, ?, ?, 0, 0, 0)",
+        args: [teamId, inName, position],
+      });
+    }
   }
 }
 
