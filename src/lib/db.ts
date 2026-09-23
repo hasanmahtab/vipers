@@ -129,6 +129,13 @@ async function migrate(db: Client) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- One-off data migrations (bulk imports, corrections) that must run
+    -- exactly once, automatically, on server start — see applyOnce below.
+    CREATE TABLE IF NOT EXISTS applied_migrations (
+      name TEXT PRIMARY KEY,
+      applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_players_team ON players(team_id);
     CREATE INDEX IF NOT EXISTS idx_fixtures_gameweek ON fixtures(gameweek_id);
     CREATE INDEX IF NOT EXISTS idx_stats_fixture ON player_stats(fixture_id);
@@ -138,6 +145,20 @@ async function migrate(db: Client) {
 
   await seedIfEmpty(db);
   await reconcileRosterChanges(db);
+  await applyOnce(db, "final_auction_results_v1", applyFinalAuctionResults);
+}
+
+/**
+ * Runs `fn` once, ever, the first time this name is seen, then records it
+ * in applied_migrations so later server starts skip it — unlike
+ * reconcileRosterChanges above, this is for one-off bulk data imports that
+ * shouldn't keep re-overwriting fields an admin may hand-edit afterward.
+ */
+async function applyOnce(db: Client, name: string, fn: (db: Client) => Promise<void>) {
+  const done = await db.execute({ sql: "SELECT 1 FROM applied_migrations WHERE name = ?", args: [name] });
+  if (done.rows.length > 0) return;
+  await fn(db);
+  await db.execute({ sql: "INSERT INTO applied_migrations (name) VALUES (?)", args: [name] });
 }
 
 // Players who dropped out of the league and who they were replaced by.
@@ -179,6 +200,97 @@ async function reconcileRosterChanges(db: Client) {
       });
     }
   }
+}
+
+// A handful of names in the final auction-results CSV were spelling
+// corrections of players already in the system (confirmed by matching
+// every CSV row 1:1 against the existing roster with no gaps before this
+// was written) — renamed here first so FINAL_ROSTER below can key off the
+// corrected spelling everywhere, including the player-photo lookup map.
+const NAME_CORRECTIONS: Record<string, string> = {
+  "Md Rafiu Hossain": "Rafiu Hossain",
+  "Hasnan Siddique Sunve": "Hasnan Sunve",
+  "Rayhan Hussain": "Rayhan Hossain",
+  "Rishik Roy": "Rhishik Roy",
+  "Rizvi Ibrahim": "Rizvi Mahmud",
+};
+
+// The real auction result, from the league's final roster CSV: every
+// player's team, position, and price. Captains aren't auctioned (price 0).
+const FINAL_ROSTER: Array<{
+  name: string;
+  team: string;
+  price: number;
+  position: "GK" | "DEF" | "MID" | "FWD";
+  captain?: boolean;
+}> = [
+  { name: "Mirza Mohammed", team: "Showstoppers", price: 22, position: "MID" },
+  { name: "Taqi Rahman", team: "Goli Underdogs", price: 2, position: "MID" },
+  { name: "K M Chisty", team: "Showstoppers", price: 6, position: "DEF" },
+  { name: "Farhan Labib", team: "Blackouts FC", price: 20, position: "DEF" },
+  { name: "Rahmat Ullah", team: "Goli Underdogs", price: 17, position: "MID" },
+  { name: "Shadman Sakib", team: "Darkstar FC", price: 6, position: "FWD" },
+  { name: "Masrur Rahman", team: "Blackouts FC", price: 20, position: "GK" },
+  { name: "Adeeb Ahmed", team: "Darkstar FC", price: 9, position: "MID" },
+  { name: "Navid Rahman", team: "Darkstar FC", price: 17, position: "MID" },
+  { name: "Jawad Anis", team: "Goli Underdogs", price: 19, position: "GK" },
+  { name: "Rafiu Hossain", team: "Goli Underdogs", price: 2, position: "DEF" },
+  { name: "Hasnan Sunve", team: "Showstoppers", price: 5, position: "DEF" },
+  { name: "Shahriar Anwar Khan", team: "Showstoppers", price: 4, position: "MID" },
+  { name: "Aiman Nawar Chowdhury", team: "Showstoppers", price: 6, position: "MID" },
+  { name: "Rayhan Hossain", team: "Darkstar FC", price: 18, position: "GK" },
+  { name: "Aafeef Kabir", team: "Goli Underdogs", price: 2, position: "MID" },
+  { name: "Nabil Shahriar", team: "Showstoppers", price: 4, position: "GK" },
+  { name: "Munem Morshed", team: "Blackouts FC", price: 36, position: "MID" },
+  { name: "Hasan Mahtab", team: "Blackouts FC", price: 4, position: "FWD" },
+  { name: "Hussain Yeasin", team: "Darkstar FC", price: 4, position: "MID" },
+  { name: "Rizvi Mahmud", team: "Goli Underdogs", price: 54, position: "DEF" },
+  { name: "Ishmam Rahman", team: "Darkstar FC", price: 9, position: "DEF" },
+  { name: "Tahsin Islam", team: "Showstoppers", price: 37, position: "FWD" },
+  { name: "Rhishik Roy", team: "Blackouts FC", price: 2, position: "MID" },
+  { name: "Mubashir Rahman", team: "Goli Underdogs", price: 2, position: "FWD" },
+  { name: "Faiad Rehman", team: "Darkstar FC", price: 17, position: "DEF" },
+  { name: "Fairooz Abir", team: "Blackouts FC", price: 4, position: "MID" },
+  { name: "Azmi Hoque", team: "Blackouts FC", price: 4, position: "DEF" },
+  { name: "Samin Haque", team: "Blackouts FC", price: 0, position: "DEF", captain: true },
+  { name: "Riyad Zaman", team: "Showstoppers", price: 0, position: "DEF", captain: true },
+  { name: "Sabit Khan", team: "Darkstar FC", price: 0, position: "DEF", captain: true },
+  { name: "Arafatul Mamur", team: "Goli Underdogs", price: 0, position: "DEF", captain: true },
+];
+
+async function applyFinalAuctionResults(db: Client) {
+  for (const [oldName, newName] of Object.entries(NAME_CORRECTIONS)) {
+    await db.execute({ sql: "UPDATE players SET name = ? WHERE name = ?", args: [newName, oldName] });
+  }
+
+  const teams = await db.execute("SELECT id, name FROM teams");
+  const teamIdByName = new Map(teams.rows.map((t) => [t.name as unknown as string, t.id as unknown as number]));
+
+  const statements = FINAL_ROSTER.map((p) => ({
+    sql: "UPDATE players SET team_id = ?, position = ?, price = ?, is_captain = ? WHERE name = ?",
+    args: [teamIdByName.get(p.team) ?? null, p.position, p.price, p.captain ? 1 : 0, p.name],
+  }));
+  await db.batch(statements, "write");
+
+  // Each team's remaining budget after the auction: 100M minus what they
+  // actually spent (captains are free, so only non-captain prices count).
+  const spendByTeam = new Map<string, number>();
+  for (const p of FINAL_ROSTER) {
+    if (p.captain) continue;
+    spendByTeam.set(p.team, (spendByTeam.get(p.team) ?? 0) + p.price);
+  }
+  const budgetStatements = Array.from(spendByTeam.entries()).flatMap(([team, spend]) => {
+    const teamId = teamIdByName.get(team);
+    if (teamId == null) return [];
+    return [
+      { sql: "UPDATE teams SET budget_remaining = ? WHERE id = ?", args: [100 - spend, teamId] },
+      {
+        sql: "INSERT INTO transactions (team_id, amount, reason) VALUES (?, 0, 'Final auction results applied')",
+        args: [teamId],
+      },
+    ];
+  });
+  await db.batch(budgetStatements, "write");
 }
 
 const DEFAULT_TEAMS: Array<{ name: string; captain: string; color: string }> = [

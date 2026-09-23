@@ -3,7 +3,6 @@ import {
   assignPlayerAction,
   deletePlayerAction,
   importPlayersCsvAction,
-  syncFinalSquadAction,
   unassignPlayerAction,
   updatePlayerAction,
 } from "@/lib/actions";
@@ -13,7 +12,7 @@ import { POSITIONS } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
 
-const POSITION_LIMITS: Record<string, number> = { GK: 1, DEF: 3, MID: 2, FWD: 2 };
+const POSITION_LIMITS: Record<string, number> = { GK: 1, DEF: 3, MID: 3, FWD: 1 };
 
 export default async function AdminPlayersPage() {
   const teams = await getAllTeams();
@@ -31,29 +30,9 @@ export default async function AdminPlayersPage() {
           Draft Pool <span className="text-white/40 text-sm font-body font-normal">({pool.length} undrafted)</span>
         </h3>
         <p className="mb-3 text-sm text-white/60">
-          Everyone registered for the league, with last season&apos;s points. Once the auction decides who
-          goes where, assign each player a team, position, and price here — the squad shape (1 GK, 3 DEF, 2
-          MID, 2 FWD) is enforced automatically.
+          Everyone registered for the league, with last season&apos;s points. Assign a player a team,
+          position, and price here — the squad shape (1 GK, 3 DEF, 3 MID, 1 FWD) is enforced automatically.
         </p>
-        <form action={syncFinalSquadAction} className="mb-4">
-          <Card className="border-neon/30 bg-neon/5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="font-display font-bold text-neon">Sync to Final Squad List (one-time)</p>
-                <p className="mt-1 text-xs text-white/60">
-                  Applies the confirmed roster: removes Mahfuz Haque and Sajid Khalid (not playing), adds
-                  Nabil Shahriar (GK) and Shadman Sakib (MID, in Sajid&apos;s place) onto Blackouts FC and
-                  Darkstar FC for now, sets everyone&apos;s locked-in position for the season, and sends
-                  every non-captain back to the pool below — ready for the real auction to assign team and
-                  price. Safe to click more than once.
-                </p>
-              </div>
-              <button className="shrink-0 rounded-md bg-neon px-4 py-2 font-display font-bold uppercase tracking-wide text-ink hover:bg-neon-glow">
-                Sync Final Squad
-              </button>
-            </div>
-          </Card>
-        </form>
         {pool.length === 0 ? (
           <Card>
             <p className="text-sm text-white/60">Every registered player has been drafted onto a team.</p>

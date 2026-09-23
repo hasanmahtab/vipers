@@ -306,9 +306,11 @@ export async function deleteAdminUserAction(formData: FormData) {
 // ---------- Players ----------
 
 const VALID_POSITIONS: Position[] = ["GK", "DEF", "MID", "FWD"];
-const POSITION_LIMITS: Record<Position, number> = { GK: 1, DEF: 3, MID: 2, FWD: 2 };
+// Matches the real auction result: every team ended up with 1 GK, 3 DEF,
+// 3 MID, 1 FWD (not the originally planned 1-3-2-2).
+const POSITION_LIMITS: Record<Position, number> = { GK: 1, DEF: 3, MID: 3, FWD: 1 };
 
-/** Throws if putting `position` on `teamId` would break the 1-3-2-2 squad shape. */
+/** Throws if putting `position` on `teamId` would break the 1-3-3-1 squad shape. */
 async function assertSquadSlotAvailable(teamId: number, position: Position, excludePlayerId?: number) {
   const row = excludePlayerId
     ? await get<{ c: number }>(
@@ -321,7 +323,7 @@ async function assertSquadSlotAvailable(teamId: number, position: Position, excl
       ]);
   if (Number(row?.c ?? 0) >= POSITION_LIMITS[position]) {
     throw new Error(
-      `That team already has ${POSITION_LIMITS[position]} ${position} player(s) — the squad shape is 1 GK, 3 DEF, 2 MID, 2 FWD.`
+      `That team already has ${POSITION_LIMITS[position]} ${position} player(s) — the squad shape is 1 GK, 3 DEF, 3 MID, 1 FWD.`
     );
   }
 }
@@ -372,114 +374,6 @@ export async function assignPlayerAction(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/teams");
   revalidatePath(`/players/${id}`);
-}
-
-// The final confirmed registration list ahead of the auction: every
-// returning player's locked-in position for the season (captains included).
-// Team assignment for everyone except captains is decided at auction, so
-// this resets non-captains back to the pool rather than guessing a team.
-const FINAL_SQUAD_POSITIONS: Record<string, Position> = {
-  "Samin Haque": "FWD",
-  "Sabit Khan": "MID",
-  "Arafatul Mamur": "DEF",
-  "Riyad Zaman": "DEF",
-  "Masrur Rahman": "GK",
-  "Jawad Anis": "GK",
-  "Rayhan Hussain": "GK",
-  "Rizvi Ibrahim": "DEF",
-  "Farhan Labib": "DEF",
-  "Rahmat Ullah": "DEF",
-  "Azmi Hoque": "DEF",
-  "Hasnan Siddique Sunve": "DEF",
-  "Mubashir Rahman": "DEF",
-  "Rishik Roy": "DEF",
-  "K M Chisty": "DEF",
-  "Md Rafiu Hossain": "DEF",
-  "Aafeef Kabir": "DEF",
-  "Mirza Mohammed": "MID",
-  "Faiad Rehman": "MID",
-  "Aiman Nawar Chowdhury": "MID",
-  "Shahriar Anwar Khan": "MID",
-  "Fairooz Abir": "MID",
-  "Taqi Rahman": "MID",
-  "Tahsin Islam": "FWD",
-  "Munem Morshed": "FWD",
-  "Ishmam Rahman": "FWD",
-  "Hussain Yeasin": "FWD",
-  "Hasan Mahtab": "FWD",
-  "Adeeb Ahmed": "FWD",
-  "Navid Rahman": "FWD",
-};
-
-const CAPTAIN_TEAMS: Record<string, string> = {
-  "Samin Haque": "Blackouts FC",
-  "Sabit Khan": "Darkstar FC",
-  "Arafatul Mamur": "Goli Underdogs",
-  "Riyad Zaman": "Showstoppers",
-};
-
-// New registrants not in the original list, placed on a team now per admin
-// request — the real auction will set their final team and price.
-const NEW_PLAYERS: { name: string; position: Position; team: string }[] = [
-  { name: "Nabil Shahriar", position: "GK", team: "Blackouts FC" },
-  { name: "Shadman Sakib", position: "MID", team: "Darkstar FC" },
-];
-
-// Not in the league this season — replaced by the new registrants above:
-// Nabil Shahriar plays in Mahfuz Haque's place, Shadman Sakib in Sajid
-// Khalid's. (These same replacements also run automatically on every
-// server start via reconcileRosterChanges in db.ts, so this sync button
-// isn't the only thing that applies them.)
-const PLAYERS_TO_REMOVE = ["Mahfuz Haque", "Sajid Khalid"];
-
-/**
- * One-time sync to the confirmed final squad list: removes players who
- * dropped out, adds new registrants, sets everyone's locked-in position for
- * the season, and sends every non-captain back to the undrafted pool ready
- * for the real auction (undoing the earlier placeholder auto-draft). Safe
- * to re-run.
- */
-export async function syncFinalSquadAction() {
-  await requireAdmin();
-  const db = await getDb();
-
-  const teams = await all<{ id: number; name: string }>("SELECT id, name FROM teams");
-  const teamIdByName = new Map(teams.map((t) => [t.name, t.id]));
-
-  const statements: { sql: string; args: (string | number | null)[] }[] = [];
-
-  for (const name of PLAYERS_TO_REMOVE) {
-    statements.push({ sql: "DELETE FROM players WHERE name = ?", args: [name] });
-  }
-
-  for (const [name, position] of Object.entries(FINAL_SQUAD_POSITIONS)) {
-    const captainTeam = CAPTAIN_TEAMS[name];
-    const teamId = captainTeam ? teamIdByName.get(captainTeam) ?? null : null;
-    statements.push({
-      sql: "UPDATE players SET position = ?, team_id = ?, is_captain = ?, price = 0 WHERE name = ?",
-      args: [position, teamId, captainTeam ? 1 : 0, name],
-    });
-  }
-
-  await db.batch(statements, "write");
-
-  const existing = await all<{ name: string }>(
-    `SELECT name FROM players WHERE name IN (${NEW_PLAYERS.map(() => "?").join(",")})`,
-    NEW_PLAYERS.map((p) => p.name)
-  );
-  const existingNames = new Set(existing.map((r) => r.name));
-
-  const inserts = NEW_PLAYERS.filter((p) => !existingNames.has(p.name)).map((p) => ({
-    sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (?, ?, ?, 0, 0, 0)",
-    args: [teamIdByName.get(p.team) ?? null, p.name, p.position] as (string | number | null)[],
-  }));
-  if (inserts.length > 0) await db.batch(inserts, "write");
-
-  revalidatePath("/admin");
-  revalidatePath("/admin/players");
-  revalidatePath("/teams");
-  revalidatePath("/table");
-  revalidatePath("/");
 }
 
 export async function unassignPlayerAction(formData: FormData) {
