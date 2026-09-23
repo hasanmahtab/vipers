@@ -119,7 +119,9 @@ export default async function TeamDetailPage({ params }: { params: { id: string 
                   href={`/fixtures/${f.id}`}
                   className="flex items-center justify-between py-2 text-sm transition hover:text-neon first:pt-0 last:pb-0"
                 >
-                  <span className="text-white/40">{f.gwLabel}</span>
+                  <span className="text-white/40">
+                    {f.gwLabel} <span className="text-white/30">· #{f.seq}</span>
+                  </span>
                   <span>
                     {isHome ? "vs" : "@"} {opponent?.name}
                   </span>

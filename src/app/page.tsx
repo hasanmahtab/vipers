@@ -81,7 +81,7 @@ export default async function HomePage() {
                 <Link key={f.id} href={`/fixtures/${f.id}`} className="shrink-0 snap-start">
                   <Card className="h-full w-64 transition hover:border-neon/50 hover:shadow-neon">
                     <p className="mb-2 text-[10px] uppercase tracking-wide text-white/30">
-                      {f.gw_label || `Gameweek ${f.gw_number}`}
+                      {f.gw_label || `Gameweek ${f.gw_number}`} · Game {f.seq}
                     </p>
                     <div className="flex items-center justify-between">
                       <span className="flex min-w-0 items-center gap-1.5 truncate font-semibold">

@@ -29,6 +29,8 @@ export interface Fixture {
   away_score: number | null;
   status: "scheduled" | "final";
   played_at: string | null;
+  /** This fixture's place in the whole season's chronological running order (1 = first game ever). */
+  seq: number;
 }
 
 export interface Gameweek {
@@ -80,12 +82,42 @@ export async function getActiveGameweek(): Promise<Gameweek | undefined> {
   );
 }
 
+// A fixture's "seq" is its place in the whole season's chronological running
+// order (gameweek, then the order it was scheduled within that gameweek) —
+// the single definition of "game N" reused by every query below so the
+// numbering is identical no matter which page or admin view is looking.
+const FIXTURE_SEQ_CTE = `
+  WITH seq AS (
+    SELECT f.*, ROW_NUMBER() OVER (ORDER BY g.number, f.id) as seq
+    FROM fixtures f
+    JOIN gameweeks g ON g.id = f.gameweek_id
+  )
+`;
+
 export function getFixturesByGameweek(gameweekId: number): Promise<Fixture[]> {
-  return all<Fixture>("SELECT * FROM fixtures WHERE gameweek_id = ? ORDER BY id", [gameweekId]);
+  return all<Fixture>(`${FIXTURE_SEQ_CTE} SELECT * FROM seq WHERE gameweek_id = ? ORDER BY id`, [gameweekId]);
 }
 
-export function getFixture(id: number): Promise<Fixture | undefined> {
-  return get<Fixture>("SELECT * FROM fixtures WHERE id = ?", [id]);
+export interface FixtureNav extends Fixture {
+  prev_id: number | null;
+  next_id: number | null;
+  total_fixtures: number;
+}
+
+export function getFixture(id: number): Promise<FixtureNav | undefined> {
+  return get<FixtureNav>(
+    `WITH seq AS (
+       SELECT f.*,
+         ROW_NUMBER() OVER (ORDER BY g.number, f.id) as seq,
+         LAG(f.id) OVER (ORDER BY g.number, f.id) as prev_id,
+         LEAD(f.id) OVER (ORDER BY g.number, f.id) as next_id,
+         COUNT(*) OVER () as total_fixtures
+       FROM fixtures f
+       JOIN gameweeks g ON g.id = f.gameweek_id
+     )
+     SELECT * FROM seq WHERE id = ?`,
+    [id]
+  );
 }
 
 export interface PlayerStatRow {
@@ -134,14 +166,15 @@ export interface FixtureWithTeams extends Fixture {
 
 export function getAllFixturesDesc(): Promise<FixtureWithTeams[]> {
   return all<FixtureWithTeams>(
-    `SELECT f.*, ht.name as home_team_name, ht.color as home_team_color,
+    `${FIXTURE_SEQ_CTE}
+     SELECT seq.*, ht.name as home_team_name, ht.color as home_team_color,
             at.name as away_team_name, at.color as away_team_color,
             g.number as gw_number, g.label as gw_label
-     FROM fixtures f
-     JOIN teams ht ON ht.id = f.home_team_id
-     JOIN teams at ON at.id = f.away_team_id
-     JOIN gameweeks g ON g.id = f.gameweek_id
-     ORDER BY g.number DESC, f.id DESC`
+     FROM seq
+     JOIN teams ht ON ht.id = seq.home_team_id
+     JOIN teams at ON at.id = seq.away_team_id
+     JOIN gameweeks g ON g.id = seq.gameweek_id
+     ORDER BY seq.seq DESC`
   );
 }
 
@@ -149,13 +182,15 @@ export async function getStatsForPlayer(
   playerId: number
 ): Promise<(PlayerStatRow & { fixture: Fixture; gameweek: Gameweek })[]> {
   const rows = await all<any>(
-    `SELECT ps.*, f.gameweek_id, f.home_team_id, f.away_team_id, f.home_score, f.away_score, f.status as fixture_status, f.played_at,
+    `${FIXTURE_SEQ_CTE}
+     SELECT ps.*, seq.gameweek_id, seq.home_team_id, seq.away_team_id, seq.home_score, seq.away_score,
+            seq.status as fixture_status, seq.played_at, seq.seq as fixture_seq,
             g.number as gw_number, g.label as gw_label, g.status as gw_status, g.id as gw_id
      FROM player_stats ps
-     JOIN fixtures f ON f.id = ps.fixture_id
-     JOIN gameweeks g ON g.id = f.gameweek_id
+     JOIN seq ON seq.id = ps.fixture_id
+     JOIN gameweeks g ON g.id = seq.gameweek_id
      WHERE ps.player_id = ?
-     ORDER BY g.number ASC`,
+     ORDER BY seq.seq ASC`,
     [playerId]
   );
 
@@ -179,6 +214,7 @@ export async function getStatsForPlayer(
       away_score: r.away_score,
       status: r.fixture_status,
       played_at: r.played_at,
+      seq: r.fixture_seq,
     },
     gameweek: { id: r.gw_id, number: r.gw_number, label: r.gw_label, status: r.gw_status },
   }));

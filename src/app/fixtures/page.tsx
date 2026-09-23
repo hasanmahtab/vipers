@@ -32,16 +32,19 @@ export default async function MatchHistoryPage() {
                   <Link
                     key={f.id}
                     href={`/fixtures/${f.id}`}
-                    className="flex items-center justify-between gap-3 py-2.5 text-sm transition hover:text-neon first:pt-0 last:pb-0"
+                    className="flex items-center gap-2 py-2.5 text-sm transition hover:text-neon first:pt-0 last:pb-0"
                   >
-                    <span className="flex min-w-0 items-center gap-1.5 truncate">
+                    <span className="shrink-0 rounded-full border border-ink-border px-1.5 py-0.5 text-[10px] font-display text-white/40">
+                      #{f.seq}
+                    </span>
+                    <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
                       <TeamBadge name={f.home_team_name} color={f.home_team_color} />
                       <span className="truncate">{f.home_team_name}</span>
                     </span>
                     <span className="shrink-0 font-display font-bold">
                       {final ? `${f.home_score} - ${f.away_score}` : "vs"}
                     </span>
-                    <span className="flex min-w-0 items-center justify-end gap-1.5 truncate text-right">
+                    <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5 truncate text-right">
                       <span className="truncate">{f.away_team_name}</span>
                       <TeamBadge name={f.away_team_name} color={f.away_team_color} />
                     </span>

@@ -123,6 +123,9 @@ export default async function AdminDashboardPage() {
                         className="flex flex-col gap-2 rounded-md border border-ink-border bg-ink-soft px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <span className="shrink-0 rounded-full border border-ink-border px-1.5 py-0.5 text-[10px] font-display text-white/40">
+                            #{f.seq}
+                          </span>
                           {home && <TeamBadge name={home.name} color={home.color} />}
                           <span className="truncate">{home?.name}</span>
                           <span className="text-white/40">vs</span>

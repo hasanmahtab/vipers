@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPlayer, getStatsForPlayer, getTeam, getTotalPointsForPlayer } from "@/lib/queries";
 import { Card, PlayerAvatar, PositionBadge, SectionTitle, StatPill, TeamLink, formatMoney } from "@/components/ui";
@@ -89,7 +90,12 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
               <tbody>
                 {history.map((h) => (
                   <tr key={h.id} className="border-t border-ink-border">
-                    <td className="py-2">{h.gameweek.label || `GW${h.gameweek.number}`}</td>
+                    <td className="py-2">
+                      <Link href={`/fixtures/${h.fixture.id}`} className="transition hover:text-neon hover:underline">
+                        {h.gameweek.label || `GW${h.gameweek.number}`}{" "}
+                        <span className="text-white/30">· #{h.fixture.seq}</span>
+                      </Link>
+                    </td>
                     <td className="py-2 text-center">{h.played ? "Yes" : "No"}</td>
                     <td className="py-2 text-center">{h.goals}</td>
                     <td className="py-2 text-center">{h.assists}</td>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   getFixture,
@@ -40,9 +41,27 @@ export default async function FixtureDetailPage({ params }: { params: { id: stri
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between gap-2 text-sm">
+        {fixture.prev_id ? (
+          <Link href={`/fixtures/${fixture.prev_id}`} className="text-neon transition hover:underline">
+            ← Previous game
+          </Link>
+        ) : (
+          <span className="text-white/20">← Previous game</span>
+        )}
+        {fixture.next_id ? (
+          <Link href={`/fixtures/${fixture.next_id}`} className="text-neon transition hover:underline">
+            Next game →
+          </Link>
+        ) : (
+          <span className="text-white/20">Next game →</span>
+        )}
+      </div>
+
       <Card className="text-center">
         <p className="font-display text-xs uppercase tracking-widest text-neon">
-          {gameweek?.label || `Gameweek ${gameweek?.number ?? ""}`} · {final ? "Full Time" : "Scheduled"}
+          Game {fixture.seq} of {fixture.total_fixtures} · {gameweek?.label || `Gameweek ${gameweek?.number ?? ""}`} ·{" "}
+          {final ? "Full Time" : "Scheduled"}
         </p>
         <div className="mt-3 flex items-center justify-center gap-4 sm:gap-8">
           <TeamLink id={home.id} name={home.name} color={home.color} className="font-display text-lg font-bold sm:text-xl" />
