@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { submitFixtureScoreAction } from "@/lib/actions";
 import { getFixture, getPlayersByTeam, getStatsForFixture, getTeam } from "@/lib/queries";
-import { Card, PositionBadge, SectionTitle, TeamBadge } from "@/components/ui";
+import { CaptainBadge, Card, PositionBadge, SectionTitle, TeamBadge } from "@/components/ui";
+import { SelectAllCheckbox } from "@/components/SelectAllCheckbox";
 
 export const dynamic = "force-dynamic";
 
@@ -63,10 +64,15 @@ export default async function FixtureScorePage({ params }: { params: { id: strin
           { team: home, players: homePlayers },
           { team: away, players: awayPlayers },
         ].map(({ team, players }) => (
-          <Card key={team.id}>
-            <div className="mb-3 flex items-center gap-2">
-              <TeamBadge name={team.name} color={team.color} />
-              <h3 className="font-display text-lg font-bold">{team.name}</h3>
+          <Card key={team.id} data-select-all-scope>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <TeamBadge name={team.name} color={team.color} />
+                <h3 className="font-display text-lg font-bold">{team.name}</h3>
+              </div>
+              {players.length > 0 && (
+                <SelectAllCheckbox targetSelector='input[name^="played_"]' label="Mark all played" />
+              )}
             </div>
             <div className="space-y-2">
               {players.length === 0 && <p className="text-sm text-white/50">No players in this squad yet.</p>}
@@ -78,9 +84,10 @@ export default async function FixtureScorePage({ params }: { params: { id: strin
                     className="flex flex-col gap-2 rounded-md border border-ink-border bg-ink-soft px-3 py-2 text-sm sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto] sm:items-center"
                   >
                     <div className="flex min-w-0 items-center justify-between gap-2 sm:justify-start">
-                      <span className="flex min-w-0 items-center gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5">
                         <PositionBadge position={p.position!} />
                         <span className="truncate">{p.name}</span>
+                        {p.is_captain === 1 && <CaptainBadge size="xs" />}
                       </span>
                       <label className="flex shrink-0 items-center gap-1 text-xs text-white/60">
                         <input

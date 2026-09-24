@@ -284,6 +284,7 @@ const FINAL_ROSTER: Array<{
   price: number;
   position: "GK" | "DEF" | "MID" | "FWD";
   captain?: boolean;
+  lastSeasonPoints?: number;
 }> = [
   { name: "Mirza Mohammed", team: "Showstoppers", price: 22, position: "MID" },
   { name: "Taqi Rahman", team: "Goli Underdogs", price: 2, position: "MID" },
@@ -313,10 +314,10 @@ const FINAL_ROSTER: Array<{
   { name: "Faiad Rehman", team: "Darkstar FC", price: 17, position: "DEF" },
   { name: "Fairooz Abir", team: "Blackouts FC", price: 4, position: "MID" },
   { name: "Azmi Hoque", team: "Blackouts FC", price: 4, position: "DEF" },
-  { name: "Samin Haque", team: "Blackouts FC", price: 0, position: "DEF", captain: true },
-  { name: "Riyad Zaman", team: "Showstoppers", price: 0, position: "DEF", captain: true },
-  { name: "Sabit Khan", team: "Darkstar FC", price: 0, position: "DEF", captain: true },
-  { name: "Arafatul Mamur", team: "Goli Underdogs", price: 0, position: "DEF", captain: true },
+  { name: "Samin Haque", team: "Blackouts FC", price: 0, position: "DEF", captain: true, lastSeasonPoints: 80 },
+  { name: "Riyad Zaman", team: "Showstoppers", price: 0, position: "DEF", captain: true, lastSeasonPoints: 62 },
+  { name: "Sabit Khan", team: "Darkstar FC", price: 0, position: "DEF", captain: true, lastSeasonPoints: 47 },
+  { name: "Arafatul Mamur", team: "Goli Underdogs", price: 0, position: "DEF", captain: true, lastSeasonPoints: 42 },
 ];
 
 async function applyFinalAuctionResults(db: Client) {
@@ -361,13 +362,27 @@ async function applyFinalAuctionResults(db: Client) {
 // rather than once like applyFinalAuctionResults above.
 async function ensureCaptainsPresent(db: Client) {
   for (const captain of FINAL_ROSTER.filter((p) => p.captain)) {
-    const existing = await db.execute({ sql: "SELECT id FROM players WHERE name = ?", args: [captain.name] });
-    if (existing.rows.length > 0) continue;
+    const lastSeasonPoints = captain.lastSeasonPoints ?? 0;
+    const existing = await db.execute({
+      sql: "SELECT id, last_season_points FROM players WHERE name = ?",
+      args: [captain.name],
+    });
+    if (existing.rows.length > 0) {
+      // Already restored once before this fix, with last_season_points
+      // wrongly defaulted to 0 — top it up now that we know the real value.
+      if (Number(existing.rows[0].last_season_points) === 0 && lastSeasonPoints > 0) {
+        await db.execute({
+          sql: "UPDATE players SET last_season_points = ? WHERE id = ?",
+          args: [lastSeasonPoints, existing.rows[0].id as unknown as number],
+        });
+      }
+      continue;
+    }
     const teamRow = await db.execute({ sql: "SELECT id FROM teams WHERE name = ?", args: [captain.team] });
     const teamId = (teamRow.rows[0]?.id as unknown as number) ?? null;
     await db.execute({
-      sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (?, ?, ?, 0, 0, 1)",
-      args: [teamId, captain.name, captain.position],
+      sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (?, ?, ?, 0, ?, 1)",
+      args: [teamId, captain.name, captain.position, lastSeasonPoints],
     });
   }
 }

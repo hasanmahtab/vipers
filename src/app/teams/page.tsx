@@ -1,5 +1,5 @@
 import { getAllTeams, getPlayersByTeam, getTeamRecords } from "@/lib/queries";
-import { Card, SectionTitle, TeamBadge, formatMoney } from "@/components/ui";
+import { CaptainBadge, Card, SectionTitle, TeamBadge, formatMoney } from "@/components/ui";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,9 @@ export default async function TeamsPage() {
                   </div>
                   <span className="font-display text-lg font-bold text-neon">{r.points} pts</span>
                 </div>
-                <p className="mt-1 text-sm text-white/60">Captain: {t.captain}</p>
+                <p className="mt-1 flex items-center gap-1.5 text-sm text-white/60">
+                  <CaptainBadge size="xs" /> Captain: {t.captain}
+                </p>
                 <div className="mt-3 flex items-center justify-between text-sm">
                   <span className="text-white/50">{squadCounts[t.id] || 0}/8 squad</span>
                   <span className="text-white/50">

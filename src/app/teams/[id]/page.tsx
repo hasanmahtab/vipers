@@ -10,7 +10,7 @@ import {
   getTotalPointsForPlayer,
   getTransactionsForTeam,
 } from "@/lib/queries";
-import { Card, PlayerLink, PositionBadge, SectionTitle, StatPill, TeamBadge, formatMoney } from "@/components/ui";
+import { CaptainBadge, Card, PlayerLink, PositionBadge, SectionTitle, StatPill, TeamBadge, formatMoney } from "@/components/ui";
 import { POSITIONS } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +49,9 @@ export default async function TeamDetailPage({ params }: { params: { id: string 
           <TeamBadge name={team.name} color={team.color} size="lg" />
           <div>
             <h1 className="font-display text-2xl font-bold">{team.name}</h1>
-            <p className="text-sm text-white/60">Captain: {team.captain}</p>
+            <p className="flex items-center gap-1.5 text-sm text-white/60">
+              <CaptainBadge size="xs" /> Captain: {team.captain}
+            </p>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-3">
@@ -78,7 +80,10 @@ export default async function TeamDetailPage({ params }: { params: { id: string 
                 <div className="divide-y divide-ink-border">
                   {inPos.map((p) => (
                     <div key={p.id} className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
-                      <PlayerLink id={p.id} name={p.name} className="font-medium" />
+                      <span className="flex items-center gap-1.5">
+                        <PlayerLink id={p.id} name={p.name} className="font-medium" />
+                        {p.is_captain === 1 && <CaptainBadge size="xs" />}
+                      </span>
                       <div className="flex items-center gap-3 text-sm text-white/60">
                         <span>{formatMoney(p.price)}</span>
                         <span className="font-display font-bold text-neon">{playerPoints[p.id] || 0} pts</span>

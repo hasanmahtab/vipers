@@ -5,11 +5,12 @@ export function Card({
   children,
   className = "",
   style,
+  ...rest
 }: {
   children: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
-}) {
+} & React.HTMLAttributes<HTMLDivElement>) {
   return (
     // min-w-0 stops this from forcing a flex/grid track wider than its
     // container when content inside can't otherwise shrink (a long name,
@@ -17,6 +18,7 @@ export function Card({
     <div
       className={`min-w-0 rounded-xl border border-ink-border bg-ink-card p-4 shadow-lg shadow-[#37003c]/[0.07] ${className}`}
       style={style}
+      {...rest}
     >
       {children}
     </div>
@@ -49,6 +51,19 @@ export function PositionBadge({ position }: { position: Position }) {
       title={POSITION_LABEL[position]}
     >
       {position}
+    </span>
+  );
+}
+
+/** Small circular "C" armband badge marking a team captain, inline next to a name. */
+export function CaptainBadge({ size = "sm" }: { size?: "xs" | "sm" }) {
+  const sizeClasses = size === "xs" ? "h-3.5 w-3.5 text-[8px]" : "h-4 w-4 text-[9px]";
+  return (
+    <span
+      title="Captain"
+      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-yellow-300 to-yellow-500 font-display font-bold leading-none text-yellow-900 shadow-sm ${sizeClasses}`}
+    >
+      C
     </span>
   );
 }

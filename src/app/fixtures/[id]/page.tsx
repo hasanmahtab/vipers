@@ -7,7 +7,7 @@ import {
   getPlayersByTeam,
   getTeam,
 } from "@/lib/queries";
-import { Card, PlayerLink, PositionBadge, SectionTitle, TeamBadge, TeamLink } from "@/components/ui";
+import { CaptainBadge, Card, PlayerLink, PositionBadge, SectionTitle, TeamBadge, TeamLink } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -91,13 +91,14 @@ export default async function FixtureDetailPage({ params }: { params: { id: stri
                   return (
                     <div key={p.id} className="py-2 first:pt-0 last:pb-0">
                       <div className="flex items-center justify-between">
-                        <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-1.5">
                           <PositionBadge position={p.position!} />
                           <PlayerLink
                             id={p.id}
                             name={p.name}
                             className={`truncate text-sm font-medium ${played ? "" : "text-white/40"}`}
                           />
+                          {p.is_captain === 1 && <CaptainBadge size="xs" />}
                         </div>
                         <span className="shrink-0 font-display text-sm font-bold text-neon">
                           {played ? `${s!.points} pts` : "DNP"}

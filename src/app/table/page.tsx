@@ -1,5 +1,5 @@
 import { getAllTeams, getFplPointsTable, getTeamRecords } from "@/lib/queries";
-import { Card, PlayerAvatar, PlayerLink, PositionBadge, RankBadge, SectionTitle, TeamLink, formatMoney } from "@/components/ui";
+import { CaptainBadge, Card, PlayerAvatar, PlayerLink, PositionBadge, RankBadge, SectionTitle, TeamLink, formatMoney } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +80,10 @@ export default async function TablePage() {
                 <RankBadge rank={i + 1} />
                 <PlayerAvatar name={p.name} photoUrl={p.photo_url} />
                 <div className="min-w-0 flex-1">
-                  <PlayerLink id={p.id} name={p.name} className="font-semibold" />
+                  <span className="flex items-center gap-1.5">
+                    <PlayerLink id={p.id} name={p.name} className="truncate font-semibold" />
+                    {p.is_captain === 1 && <CaptainBadge size="xs" />}
+                  </span>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     {p.position && <PositionBadge position={p.position} />}
                     {p.team_name && p.team_color && (

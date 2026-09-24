@@ -7,6 +7,7 @@ import {
   getTeamRecords,
 } from "@/lib/queries";
 import {
+  CaptainBadge,
   Card,
   PlayerAvatar,
   PlayerLink,
@@ -128,7 +129,10 @@ export default async function HomePage() {
                 <RankBadge rank={i + 1} />
                 <PlayerAvatar name={p.name} photoUrl={p.photo_url} />
                 <div className="min-w-0 flex-1">
-                  <PlayerLink id={p.id} name={p.name} className="font-semibold" />
+                  <span className="flex items-center gap-1.5">
+                    <PlayerLink id={p.id} name={p.name} className="truncate font-semibold" />
+                    {p.is_captain === 1 && <CaptainBadge size="xs" />}
+                  </span>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     {p.position && <PositionBadge position={p.position} />}
                     {p.team_name && p.team_color && (
@@ -160,7 +164,10 @@ export default async function HomePage() {
                     <RankBadge rank={i + 1} size="w-4 h-4 text-[10px]" />
                     <PlayerAvatar name={p.name} photoUrl={p.photo_url} />
                     <div className="min-w-0 flex-1">
-                      <PlayerLink id={p.id} name={p.name} className="block truncate text-sm font-semibold" />
+                      <span className="flex items-center gap-1.5">
+                        <PlayerLink id={p.id} name={p.name} className="truncate text-sm font-semibold" />
+                        {p.is_captain === 1 && <CaptainBadge size="xs" />}
+                      </span>
                       {p.team_name && p.team_color && (
                         <TeamLink id={p.team_id!} name={p.team_name} color={p.team_color} className="text-xs text-white/50" />
                       )}
@@ -183,7 +190,10 @@ export default async function HomePage() {
                     <RankBadge rank={i + 1} size="w-4 h-4 text-[10px]" />
                     <PlayerAvatar name={p.name} photoUrl={p.photo_url} />
                     <div className="min-w-0 flex-1">
-                      <PlayerLink id={p.id} name={p.name} className="block truncate text-sm font-semibold" />
+                      <span className="flex items-center gap-1.5">
+                        <PlayerLink id={p.id} name={p.name} className="truncate text-sm font-semibold" />
+                        {p.is_captain === 1 && <CaptainBadge size="xs" />}
+                      </span>
                       {p.team_name && p.team_color && (
                         <TeamLink id={p.team_id!} name={p.team_name} color={p.team_color} className="text-xs text-white/50" />
                       )}

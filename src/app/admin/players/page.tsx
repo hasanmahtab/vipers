@@ -7,7 +7,7 @@ import {
   updatePlayerAction,
 } from "@/lib/actions";
 import { getAllTeams, getPlayersByTeam, getUnassignedPlayers } from "@/lib/queries";
-import { Card, PositionBadge, SectionTitle, TeamBadge, formatMoney } from "@/components/ui";
+import { CaptainBadge, Card, PositionBadge, SectionTitle, TeamBadge, formatMoney } from "@/components/ui";
 import { POSITIONS } from "@/lib/scoring";
 
 export const dynamic = "force-dynamic";
@@ -49,11 +49,7 @@ export default async function AdminPlayersPage() {
                 <div>
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium">{p.name}</span>
-                    {p.is_captain === 1 && (
-                      <span className="rounded-full border border-neon/40 bg-neon/10 px-1.5 py-0.5 text-[9px] font-display font-semibold uppercase tracking-wide text-neon">
-                        C
-                      </span>
-                    )}
+                    {p.is_captain === 1 && <CaptainBadge size="xs" />}
                   </div>
                   <span className="text-xs text-white/40">{p.last_season_points} pts last season</span>
                 </div>
@@ -127,9 +123,10 @@ export default async function AdminPlayersPage() {
                 <div className="space-y-1.5">
                   {squad.map((p) => (
                     <div key={p.id} className="flex items-center justify-between rounded-md border border-ink-border bg-ink-soft px-2.5 py-1.5 text-sm">
-                      <div className="flex items-center gap-2 truncate">
+                      <div className="flex items-center gap-1.5 truncate">
                         <PositionBadge position={p.position!} />
                         <span className="truncate">{p.name}</span>
+                        {p.is_captain === 1 && <CaptainBadge size="xs" />}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-white/50">{formatMoney(p.price)}</span>
@@ -170,6 +167,7 @@ export default async function AdminPlayersPage() {
                     <td className="py-2">
                       <form action={updatePlayerAction} className="flex flex-wrap items-center gap-1">
                         <input type="hidden" name="id" value={p.id} />
+                        {p.is_captain === 1 && <CaptainBadge size="xs" />}
                         <input
                           name="name"
                           defaultValue={p.name}
