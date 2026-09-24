@@ -137,6 +137,49 @@ export async function deleteFixtureAction(formData: FormData) {
   revalidatePath("/fixtures");
 }
 
+/**
+ * Undoes a played match without deleting the fixture itself: clears the
+ * score and every player's stats, reverses the win/draw/loss budget bonus,
+ * and sends it back to "scheduled" so the admin can re-enter it (fixing a
+ * mistaken entry, wrong game, etc.) without having to recreate the
+ * matchup and gameweek from scratch.
+ */
+export async function markFixtureNotPlayedAction(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("id"));
+
+  const fixture = await get<{ id: number; status: string }>("SELECT id, status FROM fixtures WHERE id = ?", [id]);
+  if (!fixture || fixture.status !== "final") return;
+
+  const txns = await all<{ team_id: number; amount: number }>(
+    "SELECT team_id, amount FROM transactions WHERE fixture_id = ?",
+    [id]
+  );
+
+  const statements: { sql: string; args: (string | number | null)[] }[] = txns.map((t) => ({
+    sql: "UPDATE teams SET budget_remaining = budget_remaining - ? WHERE id = ?",
+    args: [t.amount, t.team_id],
+  }));
+  statements.push(
+    { sql: "DELETE FROM transactions WHERE fixture_id = ?", args: [id] },
+    { sql: "DELETE FROM player_stats WHERE fixture_id = ?", args: [id] },
+    {
+      sql: "UPDATE fixtures SET home_score = NULL, away_score = NULL, status = 'scheduled', played_at = NULL WHERE id = ?",
+      args: [id],
+    }
+  );
+
+  const db = await getDb();
+  await db.batch(statements, "write");
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+  revalidatePath("/table");
+  revalidatePath("/teams");
+  revalidatePath("/fixtures");
+  revalidatePath(`/fixtures/${id}`);
+}
+
 interface PlayerLineInput {
   playerId: number;
   teamId: number;

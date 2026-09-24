@@ -4,6 +4,7 @@ import {
   createGameweekAction,
   deleteFixtureAction,
   logoutAction,
+  markFixtureNotPlayedAction,
   setActiveGameweekAction,
 } from "@/lib/actions";
 import { getAllTeams, getFixturesByGameweek, getGameweeks } from "@/lib/queries";
@@ -143,6 +144,17 @@ export default async function AdminDashboardPage() {
                           <Link href={`/admin/fixtures/${f.id}`} className="text-neon underline">
                             {f.status === "final" ? "Edit score" : "Enter score"}
                           </Link>
+                          {f.status === "final" && (
+                            <form action={markFixtureNotPlayedAction}>
+                              <input type="hidden" name="id" value={f.id} />
+                              <ConfirmButton
+                                className="text-yellow-500 underline"
+                                confirmMessage="Mark this match as not played? This clears the score, removes every player's stats and points from it, and reverses the win/draw/loss budget bonus it paid out. The fixture stays on the schedule so you can re-enter it."
+                              >
+                                Mark not played
+                              </ConfirmButton>
+                            </form>
+                          )}
                           <form action={deleteFixtureAction}>
                             <input type="hidden" name="id" value={f.id} />
                             <ConfirmButton

@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
-import { submitFixtureScoreAction } from "@/lib/actions";
+import { markFixtureNotPlayedAction, submitFixtureScoreAction } from "@/lib/actions";
 import { getFixture, getPlayersByTeam, getStatsForFixture, getTeam } from "@/lib/queries";
 import { CaptainBadge, Card, PositionBadge, SectionTitle, TeamBadge } from "@/components/ui";
 import { SelectAllCheckbox } from "@/components/SelectAllCheckbox";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +19,22 @@ export default async function FixtureScorePage({ params }: { params: { id: strin
 
   return (
     <div className="space-y-6">
-      <SectionTitle accent>
-        Enter Score: {home.name} vs {away.name}
-      </SectionTitle>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <SectionTitle accent>
+          Enter Score: {home.name} vs {away.name}
+        </SectionTitle>
+        {fixture.status === "final" && (
+          <form action={markFixtureNotPlayedAction}>
+            <input type="hidden" name="id" value={fixture.id} />
+            <ConfirmButton
+              className="text-sm text-yellow-500 underline"
+              confirmMessage="Mark this match as not played? This clears the score, removes every player's stats and points from it, and reverses the win/draw/loss budget bonus it paid out. The fixture stays on the schedule so you can re-enter it."
+            >
+              Mark not played
+            </ConfirmButton>
+          </form>
+        )}
+      </div>
 
       <form action={submitFixtureScoreAction} className="space-y-6">
         <input type="hidden" name="fixtureId" value={fixture.id} />
