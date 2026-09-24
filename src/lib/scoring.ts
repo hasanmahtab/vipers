@@ -18,12 +18,12 @@ export const GOAL_POINTS: Record<Position, number> = {
 };
 
 export const ASSIST_POINTS = 3;
-export const APPEARANCE_POINTS = 2;
+export const APPEARANCE_POINTS = 1;
 
 /** Points for keeping a clean sheet (team concedes 0), by position. */
 export const CLEAN_SHEET_POINTS: Record<Position, number> = {
-  GK: 5,
-  DEF: 5,
+  GK: 4,
+  DEF: 4,
   MID: 1,
   FWD: 0,
 };
@@ -31,12 +31,21 @@ export const CLEAN_SHEET_POINTS: Record<Position, number> = {
 /** -1 point for every 2 goals conceded, GK/DEF only. */
 export const CONCEDED_PENALTY_PER_TWO = 1;
 
+export const BLUE_CARD_POINTS = -1;
+export const PENALTY_SAVE_POINTS = 5;
+export const PENALTY_MISS_POINTS = -2;
+export const OWN_GOAL_POINTS = -2;
+
 export interface PlayerMatchInput {
   position: Position;
   played: boolean;
   goals: number;
   assists: number;
   teamGoalsConceded: number;
+  blueCards: number;
+  penaltySaves: number;
+  penaltyMisses: number;
+  ownGoals: number;
 }
 
 export interface PlayerMatchResult {
@@ -48,6 +57,10 @@ export interface PlayerMatchResult {
     assists: number;
     cleanSheet: number;
     concededPenalty: number;
+    blueCards: number;
+    penaltySaves: number;
+    penaltyMisses: number;
+    ownGoals: number;
   };
 }
 
@@ -57,13 +70,24 @@ export interface PlayerMatchResult {
  * from the team's score line, never entered by hand.
  */
 export function calculatePlayerMatchPoints(input: PlayerMatchInput): PlayerMatchResult {
-  const { position, played, goals, assists, teamGoalsConceded } = input;
+  const { position, played, goals, assists, teamGoalsConceded, blueCards, penaltySaves, penaltyMisses, ownGoals } =
+    input;
 
   if (!played) {
     return {
       points: 0,
       cleanSheet: false,
-      breakdown: { appearance: 0, goals: 0, assists: 0, cleanSheet: 0, concededPenalty: 0 },
+      breakdown: {
+        appearance: 0,
+        goals: 0,
+        assists: 0,
+        cleanSheet: 0,
+        concededPenalty: 0,
+        blueCards: 0,
+        penaltySaves: 0,
+        penaltyMisses: 0,
+        ownGoals: 0,
+      },
     };
   }
 
@@ -76,8 +100,21 @@ export function calculatePlayerMatchPoints(input: PlayerMatchInput): PlayerMatch
     position === "GK" || position === "DEF"
       ? Math.floor(teamGoalsConceded / 2) * CONCEDED_PENALTY_PER_TWO
       : 0;
+  const blueCardPts = blueCards * BLUE_CARD_POINTS;
+  const penaltySavePts = penaltySaves * PENALTY_SAVE_POINTS;
+  const penaltyMissPts = penaltyMisses * PENALTY_MISS_POINTS;
+  const ownGoalPts = ownGoals * OWN_GOAL_POINTS;
 
-  const points = appearance + goalPts + assistPts + cleanSheetPts - concededPenalty;
+  const points =
+    appearance +
+    goalPts +
+    assistPts +
+    cleanSheetPts -
+    concededPenalty +
+    blueCardPts +
+    penaltySavePts +
+    penaltyMissPts +
+    ownGoalPts;
 
   return {
     points,
@@ -88,6 +125,10 @@ export function calculatePlayerMatchPoints(input: PlayerMatchInput): PlayerMatch
       assists: assistPts,
       cleanSheet: cleanSheetPts,
       concededPenalty: -concededPenalty,
+      blueCards: blueCardPts,
+      penaltySaves: penaltySavePts,
+      penaltyMisses: penaltyMissPts,
+      ownGoals: ownGoalPts,
     },
   };
 }

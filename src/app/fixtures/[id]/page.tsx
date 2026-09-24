@@ -109,6 +109,15 @@ export default async function FixtureDetailPage({ params }: { params: { id: stri
                           {s.assists > 0 && <span>🅰️ {s.assists} assist{s.assists > 1 ? "s" : ""}</span>}
                           {s.clean_sheet === 1 && <span>🧤 Clean sheet</span>}
                           {s.blue_cards > 0 && <span>🟦 {s.blue_cards} blue card{s.blue_cards > 1 ? "s" : ""}</span>}
+                          {s.penalty_saves > 0 && (
+                            <span>🧤 {s.penalty_saves} penalty save{s.penalty_saves > 1 ? "s" : ""}</span>
+                          )}
+                          {s.penalty_misses > 0 && (
+                            <span>❌ {s.penalty_misses} penalty miss{s.penalty_misses > 1 ? "es" : ""}</span>
+                          )}
+                          {s.own_goals > 0 && (
+                            <span>🔴 {s.own_goals} own goal{s.own_goals > 1 ? "s" : ""}</span>
+                          )}
                           {p.position === "GK" && s.goals_conceded > 0 && (
                             <span>{s.goals_conceded} conceded</span>
                           )}

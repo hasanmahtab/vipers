@@ -131,6 +131,9 @@ export interface PlayerStatRow {
   points: number;
   clean_sheet: number;
   goals_conceded: number;
+  penalty_saves: number;
+  penalty_misses: number;
+  own_goals: number;
 }
 
 export function getStatsForFixture(fixtureId: number): Promise<PlayerStatRow[]> {
@@ -205,6 +208,9 @@ export async function getStatsForPlayer(
     points: r.points,
     clean_sheet: r.clean_sheet,
     goals_conceded: r.goals_conceded,
+    penalty_saves: r.penalty_saves,
+    penalty_misses: r.penalty_misses,
+    own_goals: r.own_goals,
     fixture: {
       id: r.fixture_id,
       gameweek_id: r.gameweek_id,

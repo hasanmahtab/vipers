@@ -145,6 +145,9 @@ interface PlayerLineInput {
   goals: number;
   assists: number;
   blueCards: number;
+  penaltySaves: number;
+  penaltyMisses: number;
+  ownGoals: number;
 }
 
 export async function submitFixtureScoreAction(formData: FormData) {
@@ -176,6 +179,9 @@ export async function submitFixtureScoreAction(formData: FormData) {
     goals: Math.max(0, Number(formData.get(`goals_${p.id}`)) || 0),
     assists: Math.max(0, Number(formData.get(`assists_${p.id}`)) || 0),
     blueCards: Math.max(0, Number(formData.get(`blue_${p.id}`)) || 0),
+    penaltySaves: Math.max(0, Number(formData.get(`pensave_${p.id}`)) || 0),
+    penaltyMisses: Math.max(0, Number(formData.get(`penmiss_${p.id}`)) || 0),
+    ownGoals: Math.max(0, Number(formData.get(`owngoal_${p.id}`)) || 0),
   }));
 
   const homeOutcome = outcomeFor(homeScore, awayScore);
@@ -197,10 +203,14 @@ export async function submitFixtureScoreAction(formData: FormData) {
       goals: line.goals,
       assists: line.assists,
       teamGoalsConceded,
+      blueCards: line.blueCards,
+      penaltySaves: line.penaltySaves,
+      penaltyMisses: line.penaltyMisses,
+      ownGoals: line.ownGoals,
     });
     statements.push({
-      sql: `INSERT INTO player_stats (fixture_id, player_id, played, goals, assists, blue_cards, points, clean_sheet, goals_conceded)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO player_stats (fixture_id, player_id, played, goals, assists, blue_cards, points, clean_sheet, goals_conceded, penalty_saves, penalty_misses, own_goals)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         fixtureId,
         line.playerId,
@@ -211,6 +221,9 @@ export async function submitFixtureScoreAction(formData: FormData) {
         result.points,
         result.cleanSheet ? 1 : 0,
         teamGoalsConceded,
+        line.penaltySaves,
+        line.penaltyMisses,
+        line.ownGoals,
       ],
     });
   }

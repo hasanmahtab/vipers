@@ -54,8 +54,8 @@ export default async function FixtureScorePage({ params }: { params: { id: strin
           </div>
           <p className="mt-4 text-center text-xs text-white/40">
             Clean sheets, goals-conceded penalties, and appearance points are calculated automatically
-            from the score line above and each player&apos;s &quot;Played&quot; checkbox — you only need to
-            enter who scored and who assisted.
+            from the score line above and each player&apos;s &quot;Played&quot; checkbox — just enter goals,
+            assists, blue cards, penalty saves, penalty misses, and own goals for whoever&apos;s involved.
           </p>
         </Card>
 
@@ -75,7 +75,7 @@ export default async function FixtureScorePage({ params }: { params: { id: strin
                 return (
                   <div
                     key={p.id}
-                    className="flex flex-col gap-2 rounded-md border border-ink-border bg-ink-soft px-3 py-2 text-sm sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-center"
+                    className="flex flex-col gap-2 rounded-md border border-ink-border bg-ink-soft px-3 py-2 text-sm sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto] sm:items-center"
                   >
                     <div className="flex min-w-0 items-center justify-between gap-2 sm:justify-start">
                       <span className="flex min-w-0 items-center gap-2">
@@ -122,6 +122,38 @@ export default async function FixtureScorePage({ params }: { params: { id: strin
                           className="w-full rounded border border-ink-border bg-ink px-1.5 py-1 text-center outline-none focus:border-neon sm:w-14"
                         />
                         Blue
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 sm:contents">
+                      <label className="flex flex-col items-center gap-1 text-[11px] text-white/60 sm:flex-row sm:text-xs">
+                        <input
+                          type="number"
+                          min={0}
+                          name={`pensave_${p.id}`}
+                          defaultValue={existing?.penalty_saves ?? 0}
+                          className="w-full rounded border border-ink-border bg-ink px-1.5 py-1 text-center outline-none focus:border-neon sm:w-14"
+                        />
+                        Pen Save
+                      </label>
+                      <label className="flex flex-col items-center gap-1 text-[11px] text-white/60 sm:flex-row sm:text-xs">
+                        <input
+                          type="number"
+                          min={0}
+                          name={`penmiss_${p.id}`}
+                          defaultValue={existing?.penalty_misses ?? 0}
+                          className="w-full rounded border border-ink-border bg-ink px-1.5 py-1 text-center outline-none focus:border-neon sm:w-14"
+                        />
+                        Pen Miss
+                      </label>
+                      <label className="flex flex-col items-center gap-1 text-[11px] text-white/60 sm:flex-row sm:text-xs">
+                        <input
+                          type="number"
+                          min={0}
+                          name={`owngoal_${p.id}`}
+                          defaultValue={existing?.own_goals ?? 0}
+                          className="w-full rounded border border-ink-border bg-ink px-1.5 py-1 text-center outline-none focus:border-neon sm:w-14"
+                        />
+                        Own Goal
                       </label>
                     </div>
                   </div>

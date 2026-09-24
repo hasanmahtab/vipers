@@ -1,5 +1,6 @@
 import { createClient, type Client, type InArgs } from "@libsql/client";
 import bcrypt from "bcryptjs";
+import { calculatePlayerMatchPoints, type Position } from "./scoring";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -109,6 +110,9 @@ async function migrate(db: Client) {
       points REAL NOT NULL DEFAULT 0,
       clean_sheet INTEGER NOT NULL DEFAULT 0,
       goals_conceded INTEGER NOT NULL DEFAULT 0,
+      penalty_saves INTEGER NOT NULL DEFAULT 0,
+      penalty_misses INTEGER NOT NULL DEFAULT 0,
+      own_goals INTEGER NOT NULL DEFAULT 0,
       UNIQUE(fixture_id, player_id)
     );
 
@@ -143,9 +147,66 @@ async function migrate(db: Client) {
     CREATE INDEX IF NOT EXISTS idx_tx_team ON transactions(team_id);
   `);
 
+  // CREATE TABLE IF NOT EXISTS above only shapes a brand-new table — an
+  // existing database (i.e. production) needs these columns added by hand.
+  await ensureColumns(db, "player_stats", {
+    penalty_saves: "INTEGER NOT NULL DEFAULT 0",
+    penalty_misses: "INTEGER NOT NULL DEFAULT 0",
+    own_goals: "INTEGER NOT NULL DEFAULT 0",
+  });
+
   await seedIfEmpty(db);
   await reconcileRosterChanges(db);
   await applyOnce(db, "final_auction_results_v1", applyFinalAuctionResults);
+  await ensureCaptainsPresent(db);
+  await applyOnce(db, "recalculate_points_v1", recalculateHistoricalPoints);
+}
+
+// The point values changed (appearance 2->1, GK/DEF clean sheet 5->4) and
+// blue cards were being recorded but never actually deducted from points —
+// so every already-played match's points need recomputing under the
+// corrected rules, not just future ones. One-time: after this, every new
+// score submission already uses calculatePlayerMatchPoints directly.
+async function recalculateHistoricalPoints(db: Client) {
+  const rows = await db.execute(`
+    SELECT ps.id, ps.played, ps.goals, ps.assists, ps.blue_cards, ps.goals_conceded,
+           ps.penalty_saves, ps.penalty_misses, ps.own_goals, pl.position
+    FROM player_stats ps
+    JOIN players pl ON pl.id = ps.player_id
+  `);
+
+  const statements = rows.rows
+    .filter((r) => r.position != null)
+    .map((r) => {
+      const result = calculatePlayerMatchPoints({
+        position: r.position as unknown as Position,
+        played: (r.played as unknown as number) === 1,
+        goals: r.goals as unknown as number,
+        assists: r.assists as unknown as number,
+        teamGoalsConceded: r.goals_conceded as unknown as number,
+        blueCards: r.blue_cards as unknown as number,
+        penaltySaves: r.penalty_saves as unknown as number,
+        penaltyMisses: r.penalty_misses as unknown as number,
+        ownGoals: r.own_goals as unknown as number,
+      });
+      return {
+        sql: "UPDATE player_stats SET points = ? WHERE id = ?",
+        args: [result.points, r.id as unknown as number],
+      };
+    });
+
+  if (statements.length > 0) await db.batch(statements, "write");
+}
+
+/** Adds any of `columns` not already on `table`, safe to re-run every boot. */
+async function ensureColumns(db: Client, table: string, columns: Record<string, string>) {
+  const info = await db.execute(`PRAGMA table_info(${table})`);
+  const existing = new Set(info.rows.map((r) => r.name as unknown as string));
+  for (const [column, definition] of Object.entries(columns)) {
+    if (!existing.has(column)) {
+      await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
+  }
 }
 
 /**
@@ -291,6 +352,24 @@ async function applyFinalAuctionResults(db: Client) {
     ];
   });
   await db.batch(budgetStatements, "write");
+}
+
+// Captains own their team and must always exist. If one is ever deleted
+// (e.g. an accidental click on the admin players page), restore them with
+// their known team/position on every server start — cheap to check, and
+// a no-op once they're back, so this runs unconditionally every boot
+// rather than once like applyFinalAuctionResults above.
+async function ensureCaptainsPresent(db: Client) {
+  for (const captain of FINAL_ROSTER.filter((p) => p.captain)) {
+    const existing = await db.execute({ sql: "SELECT id FROM players WHERE name = ?", args: [captain.name] });
+    if (existing.rows.length > 0) continue;
+    const teamRow = await db.execute({ sql: "SELECT id FROM teams WHERE name = ?", args: [captain.team] });
+    const teamId = (teamRow.rows[0]?.id as unknown as number) ?? null;
+    await db.execute({
+      sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (?, ?, ?, 0, 0, 1)",
+      args: [teamId, captain.name, captain.position],
+    });
+  }
 }
 
 const DEFAULT_TEAMS: Array<{ name: string; captain: string; color: string }> = [
