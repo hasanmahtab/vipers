@@ -160,6 +160,7 @@ async function migrate(db: Client) {
   await applyOnce(db, "final_auction_results_v1", applyFinalAuctionResults);
   await ensureCaptainsPresent(db);
   await applyOnce(db, "recalculate_points_v1", recalculateHistoricalPoints);
+  await applyOnce(db, "fix_budget_double_counting_v1", fixBudgetDoubleCounting);
 }
 
 // The point values changed (appearance 2->1, GK/DEF clean sheet 5->4) and
@@ -320,6 +321,17 @@ const FINAL_ROSTER: Array<{
   { name: "Arafatul Mamur", team: "Goli Underdogs", price: 0, position: "DEF", captain: true, lastSeasonPoints: 42 },
 ];
 
+// Each team's auction spend: 100M minus what they actually paid for
+// non-captain players (captains are free) gives their post-auction budget.
+function getAuctionSpendByTeam(): Map<string, number> {
+  const spendByTeam = new Map<string, number>();
+  for (const p of FINAL_ROSTER) {
+    if (p.captain) continue;
+    spendByTeam.set(p.team, (spendByTeam.get(p.team) ?? 0) + p.price);
+  }
+  return spendByTeam;
+}
+
 async function applyFinalAuctionResults(db: Client) {
   for (const [oldName, newName] of Object.entries(NAME_CORRECTIONS)) {
     await db.execute({ sql: "UPDATE players SET name = ? WHERE name = ?", args: [newName, oldName] });
@@ -334,13 +346,7 @@ async function applyFinalAuctionResults(db: Client) {
   }));
   await db.batch(statements, "write");
 
-  // Each team's remaining budget after the auction: 100M minus what they
-  // actually spent (captains are free, so only non-captain prices count).
-  const spendByTeam = new Map<string, number>();
-  for (const p of FINAL_ROSTER) {
-    if (p.captain) continue;
-    spendByTeam.set(p.team, (spendByTeam.get(p.team) ?? 0) + p.price);
-  }
+  const spendByTeam = getAuctionSpendByTeam();
   const budgetStatements = Array.from(spendByTeam.entries()).flatMap(([team, spend]) => {
     const teamId = teamIdByName.get(team);
     if (teamId == null) return [];
@@ -353,6 +359,41 @@ async function applyFinalAuctionResults(db: Client) {
     ];
   });
   await db.batch(budgetStatements, "write");
+}
+
+// submitFixtureScoreAction used to add a fixture's win/draw/loss bonus to
+// budget_remaining on every submission without reversing the previous
+// bonus first, so re-submitting (correcting) an already-played fixture's
+// score silently stacked bonuses on top of each other. The transactions
+// table itself was never corrupted by this (each fixture always holds at
+// most one current transaction row per team, replaced on every
+// resubmission) — only budget_remaining drifted. Recompute it from
+// scratch: 100M minus auction spend, plus every transaction actually on
+// the books now. Skips any team that has ever had its budget manually set
+// via "Manage Budgets", since that's a deliberate admin override this
+// formula can't account for.
+async function fixBudgetDoubleCounting(db: Client) {
+  const teams = await db.execute("SELECT id, name FROM teams");
+  const spendByTeam = getAuctionSpendByTeam();
+
+  for (const row of teams.rows) {
+    const teamId = row.id as unknown as number;
+    const teamName = row.name as unknown as string;
+
+    const manualOverride = await db.execute({
+      sql: "SELECT 1 FROM transactions WHERE team_id = ? AND reason = 'Budget manually set by admin' LIMIT 1",
+      args: [teamId],
+    });
+    if (manualOverride.rows.length > 0) continue;
+
+    const sumRow = await db.execute({
+      sql: "SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE team_id = ?",
+      args: [teamId],
+    });
+    const spend = spendByTeam.get(teamName) ?? 0;
+    const correctBudget = 100 - spend + Number(sumRow.rows[0].total);
+    await db.execute({ sql: "UPDATE teams SET budget_remaining = ? WHERE id = ?", args: [correctBudget, teamId] });
+  }
 }
 
 // Captains own their team and must always exist. If one is ever deleted

@@ -232,10 +232,23 @@ export async function submitFixtureScoreAction(formData: FormData) {
   const homeBonus = RESULT_BONUS[homeOutcome];
   const awayBonus = RESULT_BONUS[awayOutcome];
 
+  // If this fixture was already played and is being corrected, its previous
+  // win/draw/loss bonus is still sitting in budget_remaining — reverse it
+  // before applying the new one, or re-submitting an already-final score
+  // just keeps stacking bonuses on top of each other.
+  const oldTxns = await all<{ team_id: number; amount: number }>(
+    "SELECT team_id, amount FROM transactions WHERE fixture_id = ?",
+    [fixtureId]
+  );
+
   const statements: { sql: string; args: (string | number)[] }[] = [
     // Clean up anything from a previous submission for this fixture so edits are idempotent.
     { sql: "DELETE FROM player_stats WHERE fixture_id = ?", args: [fixtureId] },
     { sql: "DELETE FROM transactions WHERE fixture_id = ?", args: [fixtureId] },
+    ...oldTxns.map((t) => ({
+      sql: "UPDATE teams SET budget_remaining = budget_remaining - ? WHERE id = ?",
+      args: [t.amount, t.team_id],
+    })),
   ];
 
   for (const line of lines) {
