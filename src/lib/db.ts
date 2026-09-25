@@ -161,6 +161,9 @@ async function migrate(db: Client) {
   await ensureCaptainsPresent(db);
   await applyOnce(db, "recalculate_points_v1", recalculateHistoricalPoints);
   await applyOnce(db, "fix_budget_double_counting_v1", fixBudgetDoubleCounting);
+  // Appearance points changed again after week 1 (1 -> 2) — same recompute,
+  // re-run under a new name since v1 already used up its one shot.
+  await applyOnce(db, "recalculate_points_v2", recalculateHistoricalPoints);
 }
 
 // The point values changed (appearance 2->1, GK/DEF clean sheet 5->4) and

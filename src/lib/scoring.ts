@@ -18,7 +18,7 @@ export const GOAL_POINTS: Record<Position, number> = {
 };
 
 export const ASSIST_POINTS = 3;
-export const APPEARANCE_POINTS = 1;
+export const APPEARANCE_POINTS = 2;
 
 /** Points for keeping a clean sheet (team concedes 0), by position. */
 export const CLEAN_SHEET_POINTS: Record<Position, number> = {
@@ -150,7 +150,7 @@ export function outcomeFor(teamScore: number, opponentScore: number): MatchOutco
 
 /** League table points for the standings — separate from fantasy scoring. */
 export const LEAGUE_POINTS: Record<MatchOutcome, number> = {
-  WIN: 2,
+  WIN: 3,
   DRAW: 1,
   LOSS: 0,
 };
