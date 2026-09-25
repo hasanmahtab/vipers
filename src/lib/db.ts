@@ -159,6 +159,7 @@ async function migrate(db: Client) {
   await reconcileRosterChanges(db);
   await applyOnce(db, "final_auction_results_v1", applyFinalAuctionResults);
   await ensureCaptainsPresent(db);
+  await ensureLastSeasonPointsCorrect(db);
   await applyOnce(db, "recalculate_points_v1", recalculateHistoricalPoints);
   await applyOnce(db, "fix_budget_double_counting_v1", fixBudgetDoubleCounting);
   // Appearance points changed again after week 1 (1 -> 2) — same recompute,
@@ -427,6 +428,32 @@ async function ensureCaptainsPresent(db: Client) {
     await db.execute({
       sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (?, ?, ?, 0, ?, 1)",
       args: [teamId, captain.name, captain.position, lastSeasonPoints],
+    });
+  }
+}
+
+// Fix any player whose last_season_points got reset to 0 when it
+// shouldn't be — e.g. Hasan Mahtab, who should show 74 (his real value
+// from RAW_PLAYER_POOL below) but ended up at 0, most likely from being
+// deleted and re-added via "Add a New Player Directly" without
+// re-entering that field. Runs on every boot; only ever moves a 0 to the
+// known correct value, never touches a player already showing something
+// else (that could be a legitimate admin edit, not damage to repair).
+async function ensureLastSeasonPointsCorrect(db: Client) {
+  const known = new Map<string, number>();
+  for (const [rawName, points] of RAW_PLAYER_POOL) {
+    if (points === 0) continue;
+    const cleanName = titleCase(rawName.replace(/\(c\)\s*$/i, "").trim());
+    known.set(NAME_CORRECTIONS[cleanName] ?? cleanName, points);
+  }
+  for (const captain of FINAL_ROSTER.filter((p) => p.captain)) {
+    if (captain.lastSeasonPoints) known.set(captain.name, captain.lastSeasonPoints);
+  }
+
+  for (const [name, points] of known) {
+    await db.execute({
+      sql: "UPDATE players SET last_season_points = ? WHERE name = ? AND last_season_points = 0",
+      args: [points, name],
     });
   }
 }
