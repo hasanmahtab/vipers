@@ -166,6 +166,7 @@ async function migrate(db: Client) {
   // re-run under a new name since v1 already used up its one shot.
   await applyOnce(db, "recalculate_points_v2", recalculateHistoricalPoints);
   await applyOnce(db, "transfer_window_1_v1", applyTransferWindow1);
+  await applyOnce(db, "dedupe_and_fix_roster_v1", dedupeAndFixRoster);
 }
 
 // The point values changed (appearance 2->1, GK/DEF clean sheet 5->4) and
@@ -417,6 +418,85 @@ async function applyTransferWindow1(db: Client) {
     args: [teamIdByName.get(p.team) ?? null, p.position, p.name],
   }));
   await db.batch(statements, "write");
+}
+
+// applyTransferWindow1 above assumed every name matched exactly one row —
+// not safe, since "Add a New Player Directly" and CSV import both used to
+// blindly INSERT rather than checking for an existing player first (fixed
+// separately in actions.ts). If a transferred player had been accidentally
+// re-added as a duplicate before this deploy, the exact-match UPDATE would
+// move every row sharing that name, landing duplicates together on one
+// team, while a name that didn't match byte-for-byte (whitespace, case)
+// silently moved nothing — exactly "some players appear twice on one team,
+// others are missing from another."
+//
+// Derives the complete post-transfer-window roster (FINAL_ROSTER's
+// unchanged GKs/prices/captains, with team+position overridden by
+// TRANSFER_WINDOW_1 for the 28 players it covers), then for each of the 32
+// canonical names: merges away any duplicate rows (keeping whichever copy
+// has real match history, moving stats off the others first) and sets the
+// survivor to the correct team/position, matching case/whitespace-
+// insensitively. Safe to re-run — settles into the same end state.
+async function dedupeAndFixRoster(db: Client) {
+  const teams = await db.execute("SELECT id, name FROM teams");
+  const teamIdByName = new Map(teams.rows.map((t) => [t.name as unknown as string, t.id as unknown as number]));
+
+  const windowByName = new Map(TRANSFER_WINDOW_1.map((p) => [p.name, p]));
+  const fullRoster = FINAL_ROSTER.map((p) => {
+    const moved = windowByName.get(p.name);
+    return moved ? { ...p, team: moved.team, position: moved.position } : p;
+  });
+
+  for (const target of fullRoster) {
+    const rows = await db.execute({
+      sql: "SELECT id FROM players WHERE TRIM(LOWER(name)) = TRIM(LOWER(?)) ORDER BY id",
+      args: [target.name],
+    });
+    if (rows.rows.length === 0) continue;
+
+    let survivorId = rows.rows[0].id as unknown as number;
+    if (rows.rows.length > 1) {
+      for (const r of rows.rows) {
+        const id = r.id as unknown as number;
+        const hasStats = await db.execute({
+          sql: "SELECT 1 FROM player_stats WHERE player_id = ? LIMIT 1",
+          args: [id],
+        });
+        if (hasStats.rows.length > 0) {
+          survivorId = id;
+          break;
+        }
+      }
+      for (const r of rows.rows) {
+        const dupId = r.id as unknown as number;
+        if (dupId === survivorId) continue;
+        const dupStats = await db.execute({
+          sql: "SELECT id, fixture_id FROM player_stats WHERE player_id = ?",
+          args: [dupId],
+        });
+        for (const s of dupStats.rows) {
+          const fixtureId = s.fixture_id as unknown as number;
+          const statId = s.id as unknown as number;
+          const clash = await db.execute({
+            sql: "SELECT 1 FROM player_stats WHERE player_id = ? AND fixture_id = ?",
+            args: [survivorId, fixtureId],
+          });
+          if (clash.rows.length === 0) {
+            await db.execute({ sql: "UPDATE player_stats SET player_id = ? WHERE id = ?", args: [survivorId, statId] });
+          } else {
+            await db.execute({ sql: "DELETE FROM player_stats WHERE id = ?", args: [statId] });
+          }
+        }
+        await db.execute({ sql: "DELETE FROM players WHERE id = ?", args: [dupId] });
+      }
+    }
+
+    const teamId = teamIdByName.get(target.team) ?? null;
+    await db.execute({
+      sql: "UPDATE players SET name = ?, team_id = ?, position = ? WHERE id = ?",
+      args: [target.name, teamId, target.position, survivorId],
+    });
+  }
 }
 
 // submitFixtureScoreAction used to add a fixture's win/draw/loss bonus to

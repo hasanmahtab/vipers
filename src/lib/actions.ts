@@ -407,6 +407,16 @@ export async function addPlayerAction(formData: FormData) {
 
   if (!teamId || !name) throw new Error("Missing team or player name");
   if (!VALID_POSITIONS.includes(position)) throw new Error("Invalid position");
+
+  const existing = await get<{ id: number }>("SELECT id FROM players WHERE TRIM(LOWER(name)) = TRIM(LOWER(?))", [
+    name,
+  ]);
+  if (existing) {
+    throw new Error(
+      `A player named "${name}" already exists. Use Draft (if they're in the pool) or Edit Squad Player instead of adding them again — adding a duplicate splits their team/stats across two rows.`
+    );
+  }
+
   await assertSquadSlotAvailable(teamId, position);
 
   await run("INSERT INTO players (team_id, name, position, price, last_season_points) VALUES (?, ?, ?, ?, ?)", [
@@ -565,6 +575,8 @@ export async function importPlayersCsvAction(formData: FormData): Promise<void> 
 
   const teams = await all<{ id: number; name: string }>("SELECT id, name FROM teams");
   const teamByName = new Map(teams.map((t) => [t.name.trim().toLowerCase(), t.id]));
+  const existingPlayers = await all<{ id: number; name: string }>("SELECT id, name FROM players");
+  const playerIdByName = new Map(existingPlayers.map((p) => [p.name.trim().toLowerCase(), p.id]));
 
   const statements: { sql: string; args: (string | number)[] }[] = [];
   for (const cols of rows.slice(1)) {
@@ -580,10 +592,21 @@ export async function importPlayersCsvAction(formData: FormData): Promise<void> 
     const price = idx.price >= 0 ? Number(cols[idx.price]) || 0 : 0;
     const lastSeason = idx.lastSeason >= 0 ? Number(cols[idx.lastSeason]) || 0 : 0;
 
-    statements.push({
-      sql: "INSERT INTO players (team_id, name, position, price, last_season_points) VALUES (?, ?, ?, ?, ?)",
-      args: [teamId, name, position, price, lastSeason],
-    });
+    // A name that already exists gets updated in place rather than
+    // inserted again — re-importing the same (or an overlapping) CSV used
+    // to silently create a duplicate row for every repeated name.
+    const existingId = playerIdByName.get(name.toLowerCase());
+    if (existingId != null) {
+      statements.push({
+        sql: "UPDATE players SET team_id = ?, position = ?, price = ?, last_season_points = ? WHERE id = ?",
+        args: [teamId, position, price, lastSeason, existingId],
+      });
+    } else {
+      statements.push({
+        sql: "INSERT INTO players (team_id, name, position, price, last_season_points) VALUES (?, ?, ?, ?, ?)",
+        args: [teamId, name, position, price, lastSeason],
+      });
+    }
   }
 
   if (statements.length > 0) {
