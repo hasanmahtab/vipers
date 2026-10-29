@@ -165,6 +165,7 @@ async function migrate(db: Client) {
   // Appearance points changed again after week 1 (1 -> 2) — same recompute,
   // re-run under a new name since v1 already used up its one shot.
   await applyOnce(db, "recalculate_points_v2", recalculateHistoricalPoints);
+  await applyOnce(db, "transfer_window_1_v1", applyTransferWindow1);
 }
 
 // The point values changed (appearance 2->1, GK/DEF clean sheet 5->4) and
@@ -363,6 +364,59 @@ async function applyFinalAuctionResults(db: Client) {
     ];
   });
   await db.batch(budgetStatements, "write");
+}
+
+// First mid-season transfer window: 13 players changed teams, plus 4 more
+// (Aafeef Kabir, Hasan Mahtab, Rhishik Roy, Arafatul Mamur) had their
+// position revised without changing team. Prices and budgets are
+// untouched — the league ran this as a straight swap, no auction spend
+// involved. GKs aren't listed since none of them moved; each team keeps
+// its existing one. Every team still lands on the same 1 GK/3 DEF/3
+// MID/1 FWD shape as before.
+const TRANSFER_WINDOW_1: Array<{ name: string; team: string; position: "GK" | "DEF" | "MID" | "FWD" }> = [
+  // Showstoppers
+  { name: "Riyad Zaman", team: "Showstoppers", position: "DEF" },
+  { name: "Hasnan Sunve", team: "Showstoppers", position: "DEF" },
+  { name: "Azmi Hoque", team: "Showstoppers", position: "DEF" },
+  { name: "Munem Morshed", team: "Showstoppers", position: "MID" },
+  { name: "Fairooz Abir", team: "Showstoppers", position: "MID" },
+  { name: "Shahriar Anwar Khan", team: "Showstoppers", position: "MID" },
+  { name: "Tahsin Islam", team: "Showstoppers", position: "FWD" },
+  // Darkstar FC
+  { name: "Sabit Khan", team: "Darkstar FC", position: "DEF" },
+  { name: "Mirza Mohammed", team: "Darkstar FC", position: "DEF" },
+  { name: "Ishmam Rahman", team: "Darkstar FC", position: "DEF" },
+  { name: "Rahmat Ullah", team: "Darkstar FC", position: "MID" },
+  { name: "Aiman Nawar Chowdhury", team: "Darkstar FC", position: "MID" },
+  { name: "Taqi Rahman", team: "Darkstar FC", position: "MID" },
+  { name: "Shadman Sakib", team: "Darkstar FC", position: "FWD" },
+  // Blackouts FC
+  { name: "Rhishik Roy", team: "Blackouts FC", position: "DEF" },
+  { name: "Farhan Labib", team: "Blackouts FC", position: "DEF" },
+  { name: "Samin Haque", team: "Blackouts FC", position: "DEF" },
+  { name: "Faiad Rehman", team: "Blackouts FC", position: "MID" },
+  { name: "Adeeb Ahmed", team: "Blackouts FC", position: "MID" },
+  { name: "Hasan Mahtab", team: "Blackouts FC", position: "MID" },
+  { name: "Mubashir Rahman", team: "Blackouts FC", position: "FWD" },
+  // Goli Underdogs
+  { name: "K M Chisty", team: "Goli Underdogs", position: "DEF" },
+  { name: "Rizvi Mahmud", team: "Goli Underdogs", position: "DEF" },
+  { name: "Rafiu Hossain", team: "Goli Underdogs", position: "DEF" },
+  { name: "Hussain Yeasin", team: "Goli Underdogs", position: "MID" },
+  { name: "Arafatul Mamur", team: "Goli Underdogs", position: "MID" },
+  { name: "Navid Rahman", team: "Goli Underdogs", position: "MID" },
+  { name: "Aafeef Kabir", team: "Goli Underdogs", position: "FWD" },
+];
+
+async function applyTransferWindow1(db: Client) {
+  const teams = await db.execute("SELECT id, name FROM teams");
+  const teamIdByName = new Map(teams.rows.map((t) => [t.name as unknown as string, t.id as unknown as number]));
+
+  const statements = TRANSFER_WINDOW_1.map((p) => ({
+    sql: "UPDATE players SET team_id = ?, position = ? WHERE name = ?",
+    args: [teamIdByName.get(p.team) ?? null, p.position, p.name],
+  }));
+  await db.batch(statements, "write");
 }
 
 // submitFixtureScoreAction used to add a fixture's win/draw/loss bonus to
