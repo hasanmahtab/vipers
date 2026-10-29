@@ -167,6 +167,7 @@ async function migrate(db: Client) {
   await applyOnce(db, "recalculate_points_v2", recalculateHistoricalPoints);
   await applyOnce(db, "transfer_window_1_v1", applyTransferWindow1);
   await applyOnce(db, "dedupe_and_fix_roster_v1", dedupeAndFixRoster);
+  await applyOnce(db, "dedupe_and_fix_roster_v2", dedupeAndFixRosterV2);
 }
 
 // The point values changed (appearance 2->1, GK/DEF clean sheet 5->4) and
@@ -488,6 +489,94 @@ async function dedupeAndFixRoster(db: Client) {
           }
         }
         await db.execute({ sql: "DELETE FROM players WHERE id = ?", args: [dupId] });
+      }
+    }
+
+    const teamId = teamIdByName.get(target.team) ?? null;
+    await db.execute({
+      sql: "UPDATE players SET name = ?, team_id = ?, position = ? WHERE id = ?",
+      args: [target.name, teamId, target.position, survivorId],
+    });
+  }
+}
+
+// v1 above moved/merged player_stats between duplicate rows, including a
+// branch that outright DELETED a stat row on a clash — too risky in
+// hindsight, since any such merge can shift a player's total points and
+// therefore the FPL ranking, which must never move as a side effect of a
+// roster cleanup. v1's name match (TRIM/LOWER only) also missed at least
+// one real duplicate (Fairooz Abir), most likely from a double space or
+// non-breaking space in one copy of the name that TRIM doesn't collapse.
+//
+// v2 fixes both: name matching normalizes far more aggressively (collapses
+// any run of whitespace incl. non-breaking/zero-width characters, trims,
+// lowercases) done in JS rather than relying on SQLite string functions,
+// and duplicate resolution NEVER touches player_stats — a duplicate with
+// zero recorded stats is simply deleted (provably no ranking impact); a
+// duplicate that has any real stats is left completely alone (not
+// deleted, not merged, not even its team/position changed) rather than
+// risk altering a total the current rankings already reflect. The
+// survivor for team/position purposes is whichever copy currently has the
+// most points, so the roster display matches whichever row the rankings
+// are already crediting.
+function normalizePlayerName(raw: string): string {
+  return raw
+    .replace(/[ ​-‍﻿]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+async function dedupeAndFixRosterV2(db: Client) {
+  const teams = await db.execute("SELECT id, name FROM teams");
+  const teamIdByName = new Map(teams.rows.map((t) => [t.name as unknown as string, t.id as unknown as number]));
+
+  const windowByName = new Map(TRANSFER_WINDOW_1.map((p) => [p.name, p]));
+  const fullRoster = FINAL_ROSTER.map((p) => {
+    const moved = windowByName.get(p.name);
+    return moved ? { ...p, team: moved.team, position: moved.position } : p;
+  });
+
+  const allPlayers = await db.execute("SELECT id, name FROM players");
+  const idsByNormalizedName = new Map<string, number[]>();
+  for (const r of allPlayers.rows) {
+    const id = r.id as unknown as number;
+    const key = normalizePlayerName(r.name as unknown as string);
+    const list = idsByNormalizedName.get(key) ?? [];
+    list.push(id);
+    idsByNormalizedName.set(key, list);
+  }
+
+  for (const target of fullRoster) {
+    const ids = idsByNormalizedName.get(normalizePlayerName(target.name));
+    if (!ids || ids.length === 0) continue;
+
+    let survivorId = ids[0];
+    if (ids.length > 1) {
+      let bestPoints = -Infinity;
+      for (const id of ids) {
+        const sumRow = await db.execute({
+          sql: "SELECT COALESCE(SUM(points), 0) as pts FROM player_stats WHERE player_id = ?",
+          args: [id],
+        });
+        const pts = Number(sumRow.rows[0].pts);
+        if (pts > bestPoints) {
+          bestPoints = pts;
+          survivorId = id;
+        }
+      }
+      for (const id of ids) {
+        if (id === survivorId) continue;
+        const hasStats = await db.execute({
+          sql: "SELECT 1 FROM player_stats WHERE player_id = ? LIMIT 1",
+          args: [id],
+        });
+        if (hasStats.rows.length === 0) {
+          await db.execute({ sql: "DELETE FROM players WHERE id = ?", args: [id] });
+        }
+        // A duplicate carrying real stats is left entirely untouched —
+        // it won't show up in this player's squad slot, but nothing about
+        // its recorded history or any ranking derived from it changes.
       }
     }
 
