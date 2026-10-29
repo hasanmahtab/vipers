@@ -168,6 +168,8 @@ async function migrate(db: Client) {
   await applyOnce(db, "transfer_window_1_v1", applyTransferWindow1);
   await applyOnce(db, "dedupe_and_fix_roster_v1", dedupeAndFixRoster);
   await applyOnce(db, "dedupe_and_fix_roster_v2", dedupeAndFixRosterV2);
+  await ensureFullRosterPresent(db);
+  await applyOnce(db, "fix_faiad_rehman_points_v1", fixFaiadRehmanPoints);
 }
 
 // The point values changed (appearance 2->1, GK/DEF clean sheet 5->4) and
@@ -585,6 +587,85 @@ async function dedupeAndFixRosterV2(db: Client) {
       sql: "UPDATE players SET name = ?, team_id = ?, position = ? WHERE id = ?",
       args: [target.name, teamId, target.position, survivorId],
     });
+  }
+}
+
+// Both dedupe passes above only ever act on rows that already match a
+// canonical roster name by some normalization — neither has any path to
+// recreate a player with ZERO matching rows. Fairooz Abir being reported
+// missing for a third time, after two rounds of fixing whitespace/
+// duplicate-name matching, means her row was most likely deleted outright
+// (e.g. the unprotected "Delete" button on a non-captain row in Edit Squad
+// Player), not merely duplicated or misspelled. Generalizes
+// ensureCaptainsPresent below to the full 32-player canonical roster: on
+// every boot, re-insert any player who is completely absent (by the same
+// aggressive normalizePlayerName matching dedupeAndFixRosterV2 uses), with
+// their correct post-transfer-window team/position/price/last season
+// points. A no-op once everyone is present, so safe to run unconditionally
+// every start rather than once. Note: if a player's row was fully deleted,
+// ON DELETE CASCADE already erased her match history for good — this can
+// restore her to the squad with the right team/position, but not recover
+// points from matches played before she was re-inserted.
+async function ensureFullRosterPresent(db: Client) {
+  const teams = await db.execute("SELECT id, name FROM teams");
+  const teamIdByName = new Map(teams.rows.map((t) => [t.name as unknown as string, t.id as unknown as number]));
+
+  const windowByName = new Map(TRANSFER_WINDOW_1.map((p) => [p.name, p]));
+  const fullRoster = FINAL_ROSTER.map((p) => {
+    const moved = windowByName.get(p.name);
+    return moved ? { ...p, team: moved.team, position: moved.position } : p;
+  });
+
+  const allPlayers = await db.execute("SELECT name FROM players");
+  const existingNames = new Set(allPlayers.rows.map((r) => normalizePlayerName(r.name as unknown as string)));
+
+  for (const target of fullRoster) {
+    if (existingNames.has(normalizePlayerName(target.name))) continue;
+    const teamId = teamIdByName.get(target.team) ?? null;
+    await db.execute({
+      sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (?, ?, ?, ?, ?, ?)",
+      args: [teamId, target.name, target.position, target.price, target.lastSeasonPoints ?? 0, target.captain ? 1 : 0],
+    });
+  }
+}
+
+// Faiad Rehman's total FPL points were reported showing 70 when the
+// correct value is 44 — almost certainly ~26 phantom points absorbed from
+// a duplicate row's match history during dedupeAndFixRoster v1's now-
+// retired stat-merge logic, before v2 banned touching player_stats
+// entirely. One-time, named correction: trims the surplus off HIS
+// player_stats rows only (largest first, never below zero) until his
+// total matches the confirmed-correct value. Guarded so it's a no-op if
+// his total is already at or below 44 (e.g. already fixed, or this runs
+// against a database where the bug never happened) — it only ever lowers
+// a too-high total, never raises one, and never touches any other
+// player's rows.
+async function fixFaiadRehmanPoints(db: Client) {
+  const CORRECT_TOTAL = 44;
+  const player = await db.execute({
+    sql: "SELECT id FROM players WHERE TRIM(LOWER(name)) = TRIM(LOWER(?))",
+    args: ["Faiad Rehman"],
+  });
+  if (player.rows.length === 0) return;
+  const playerId = player.rows[0].id as unknown as number;
+
+  const statsRows = await db.execute({
+    sql: "SELECT id, points FROM player_stats WHERE player_id = ? ORDER BY points DESC",
+    args: [playerId],
+  });
+  const total = statsRows.rows.reduce((sum, r) => sum + Number(r.points), 0);
+  if (total <= CORRECT_TOTAL) return;
+
+  let surplus = total - CORRECT_TOTAL;
+  for (const r of statsRows.rows) {
+    if (surplus <= 0) break;
+    const id = r.id as unknown as number;
+    const points = Number(r.points);
+    const reduction = Math.min(points, surplus);
+    if (reduction > 0) {
+      await db.execute({ sql: "UPDATE player_stats SET points = ? WHERE id = ?", args: [points - reduction, id] });
+      surplus -= reduction;
+    }
   }
 }
 
