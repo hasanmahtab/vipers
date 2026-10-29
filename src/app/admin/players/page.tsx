@@ -6,7 +6,7 @@ import {
   unassignPlayerAction,
   updatePlayerAction,
 } from "@/lib/actions";
-import { getAllTeams, getPlayersByTeam, getUnassignedPlayers } from "@/lib/queries";
+import { getAllTeams, getPlayersByTeam, getTotalPointsForPlayer, getUnassignedPlayers } from "@/lib/queries";
 import { CaptainBadge, Card, PositionBadge, SectionTitle, TeamBadge, formatMoney } from "@/components/ui";
 import { POSITIONS } from "@/lib/scoring";
 
@@ -19,6 +19,10 @@ export default async function AdminPlayersPage() {
   const pool = await getUnassignedPlayers();
   const squadsByTeam = Object.fromEntries(
     await Promise.all(teams.map(async (t) => [t.id, await getPlayersByTeam(t.id)] as const))
+  );
+  const allSquadPlayers = Object.values(squadsByTeam).flat();
+  const pointsByPlayer = Object.fromEntries(
+    await Promise.all(allSquadPlayers.map(async (p) => [p.id, await getTotalPointsForPlayer(p.id)] as const))
   );
 
   return (
@@ -148,7 +152,7 @@ export default async function AdminPlayersPage() {
       <section>
         <h3 className="mb-3 font-display text-lg font-bold">Edit Squad Player</h3>
         <Card className="overflow-x-auto">
-          <table className="w-full min-w-[700px] text-sm">
+          <table className="w-full min-w-[860px] text-sm">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wide text-white/40">
                 <th className="pb-2">Team</th>
@@ -156,6 +160,7 @@ export default async function AdminPlayersPage() {
                 <th className="pb-2">Pos</th>
                 <th className="pb-2">Price</th>
                 <th className="pb-2">Last Season</th>
+                <th className="pb-2">FPL Pts</th>
                 <th className="pb-2 text-right">Actions</th>
               </tr>
             </thead>
@@ -173,6 +178,18 @@ export default async function AdminPlayersPage() {
                           defaultValue={p.name}
                           className="w-32 rounded border border-ink-border bg-ink-soft px-1.5 py-1"
                         />
+                        <select
+                          name="teamId"
+                          defaultValue={t.id}
+                          title="Move to another team"
+                          className="rounded border border-ink-border bg-ink-soft px-1.5 py-1"
+                        >
+                          {teams.map((opt) => (
+                            <option key={opt.id} value={opt.id}>
+                              {opt.name}
+                            </option>
+                          ))}
+                        </select>
                         <select
                           name="position"
                           defaultValue={p.position ?? ""}
@@ -203,6 +220,7 @@ export default async function AdminPlayersPage() {
                     <td className="py-2">{p.position && <PositionBadge position={p.position} />}</td>
                     <td className="py-2">{formatMoney(p.price)}</td>
                     <td className="py-2">{p.last_season_points}</td>
+                    <td className="py-2 font-display font-bold text-neon">{pointsByPlayer[p.id] ?? 0}</td>
                     <td className="py-2 text-right">
                       <form action={deletePlayerAction}>
                         <input type="hidden" name="id" value={p.id} />

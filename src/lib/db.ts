@@ -178,6 +178,80 @@ async function migrate(db: Client) {
   // player's team/position/price/captaincy from FINAL_ROSTER" UPDATE) puts
   // every player back on their original team and position.
   await applyOnce(db, "revert_transfer_window_1_v1", applyFinalAuctionResults);
+  await applyOnce(db, "restore_fairooz_abir_stats_v1", restoreFairoozAbirStats);
+}
+
+// Fairooz Abir's original match history was permanently deleted before
+// this session's work even began — confirmed unrecoverable, including
+// via Turso's own backups. What IS known for certain (confirmed by the
+// admin, cross-checked against the live Season Leaders board): she
+// played as a midfielder for Blackouts FC in every match played so far,
+// with 3 assists and 0 goals across the season, 0 cards/penalties/own
+// goals. One-time: reconstructs her player_stats from that — one row per
+// already-played Blackouts FC fixture, computed through the normal
+// scoring function so clean-sheet bonuses reflect each match's real
+// score. The real match-by-match assist split isn't known, so all 3 are
+// credited to her first played match — that doesn't change the season
+// total, only which single match's breakdown shows them. Guarded to
+// skip any fixture she already has a row for, so it's safe to reason
+// about even if her squad changes before this runs.
+async function restoreFairoozAbirStats(db: Client) {
+  const player = await db.execute({
+    sql: "SELECT id FROM players WHERE TRIM(LOWER(name)) = TRIM(LOWER(?))",
+    args: ["Fairooz Abir"],
+  });
+  if (player.rows.length === 0) return;
+  const playerId = player.rows[0].id as unknown as number;
+
+  const team = await db.execute({ sql: "SELECT id FROM teams WHERE name = ?", args: ["Blackouts FC"] });
+  if (team.rows.length === 0) return;
+  const teamId = team.rows[0].id as unknown as number;
+
+  const fixtures = await db.execute({
+    sql: `SELECT id, home_team_id, home_score, away_score
+          FROM fixtures
+          WHERE status = 'final' AND (home_team_id = ? OR away_team_id = ?)
+          ORDER BY id`,
+    args: [teamId, teamId],
+  });
+  if (fixtures.rows.length === 0) return;
+
+  const existing = await db.execute({ sql: "SELECT fixture_id FROM player_stats WHERE player_id = ?", args: [playerId] });
+  const alreadyRecorded = new Set(existing.rows.map((r) => r.fixture_id as unknown as number));
+
+  const TOTAL_ASSISTS = 3;
+  let assistsLeft = TOTAL_ASSISTS;
+  const statements: { sql: string; args: (string | number)[] }[] = [];
+
+  for (const f of fixtures.rows) {
+    const fixtureId = f.id as unknown as number;
+    if (alreadyRecorded.has(fixtureId)) continue;
+
+    const isHome = (f.home_team_id as unknown as number) === teamId;
+    const teamGoalsConceded = Number(isHome ? f.away_score : f.home_score);
+    const assists = assistsLeft;
+    assistsLeft = 0;
+
+    const result = calculatePlayerMatchPoints({
+      position: "MID",
+      played: true,
+      goals: 0,
+      assists,
+      teamGoalsConceded,
+      blueCards: 0,
+      penaltySaves: 0,
+      penaltyMisses: 0,
+      ownGoals: 0,
+    });
+
+    statements.push({
+      sql: `INSERT INTO player_stats (fixture_id, player_id, played, goals, assists, blue_cards, points, clean_sheet, goals_conceded, penalty_saves, penalty_misses, own_goals)
+            VALUES (?, ?, 1, 0, ?, 0, ?, ?, ?, 0, 0, 0)`,
+      args: [fixtureId, playerId, assists, result.points, result.cleanSheet ? 1 : 0, teamGoalsConceded],
+    });
+  }
+
+  if (statements.length > 0) await db.batch(statements, "write");
 }
 
 // The point values changed (appearance 2->1, GK/DEF clean sheet 5->4) and

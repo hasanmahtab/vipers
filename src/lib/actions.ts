@@ -470,22 +470,29 @@ export async function updatePlayerAction(formData: FormData) {
   const position = String(formData.get("position") || "").toUpperCase() as Position;
   const price = Number(formData.get("price")) || 0;
   const lastSeasonPoints = Number(formData.get("lastSeasonPoints")) || 0;
+  const teamIdRaw = formData.get("teamId");
+  const teamId = teamIdRaw ? Number(teamIdRaw) : null;
 
   if (!VALID_POSITIONS.includes(position)) throw new Error("Invalid position");
+  if (!teamId) throw new Error("Missing team");
 
   const current = await get<{ team_id: number | null; position: Position | null }>(
     "SELECT team_id, position FROM players WHERE id = ?",
     [id]
   );
-  if (current?.team_id && position !== current.position) {
-    await assertSquadSlotAvailable(current.team_id, position, id);
+  // A mid-season move to another team, or a position change on the same
+  // team, both need the target team's squad shape (1 GK, 3 DEF, 3 MID,
+  // 1 FWD) to have room — only skip the check when neither changed.
+  if (teamId !== current?.team_id || position !== current?.position) {
+    await assertSquadSlotAvailable(teamId, position, id);
   }
 
-  await run("UPDATE players SET name = ?, position = ?, price = ?, last_season_points = ? WHERE id = ?", [
+  await run("UPDATE players SET name = ?, position = ?, price = ?, last_season_points = ?, team_id = ? WHERE id = ?", [
     name,
     position,
     price,
     lastSeasonPoints,
+    teamId,
     id,
   ]);
 
