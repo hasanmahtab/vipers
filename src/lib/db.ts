@@ -619,12 +619,15 @@ async function ensureFullRosterPresent(db: Client) {
   const allPlayers = await db.execute("SELECT name FROM players");
   const existingNames = new Set(allPlayers.rows.map((r) => normalizePlayerName(r.name as unknown as string)));
 
+  const knownLastSeasonPoints = getKnownLastSeasonPoints();
+
   for (const target of fullRoster) {
     if (existingNames.has(normalizePlayerName(target.name))) continue;
     const teamId = teamIdByName.get(target.team) ?? null;
+    const lastSeasonPoints = target.lastSeasonPoints ?? knownLastSeasonPoints.get(target.name) ?? 0;
     await db.execute({
       sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (?, ?, ?, ?, ?, ?)",
-      args: [teamId, target.name, target.position, target.price, target.lastSeasonPoints ?? 0, target.captain ? 1 : 0],
+      args: [teamId, target.name, target.position, target.price, lastSeasonPoints, target.captain ? 1 : 0],
     });
   }
 }
@@ -743,7 +746,7 @@ async function ensureCaptainsPresent(db: Client) {
 // re-entering that field. Runs on every boot; only ever moves a 0 to the
 // known correct value, never touches a player already showing something
 // else (that could be a legitimate admin edit, not damage to repair).
-async function ensureLastSeasonPointsCorrect(db: Client) {
+function getKnownLastSeasonPoints(): Map<string, number> {
   const known = new Map<string, number>();
   for (const [rawName, points] of RAW_PLAYER_POOL) {
     if (points === 0) continue;
@@ -753,6 +756,11 @@ async function ensureLastSeasonPointsCorrect(db: Client) {
   for (const captain of FINAL_ROSTER.filter((p) => p.captain)) {
     if (captain.lastSeasonPoints) known.set(captain.name, captain.lastSeasonPoints);
   }
+  return known;
+}
+
+async function ensureLastSeasonPointsCorrect(db: Client) {
+  const known = getKnownLastSeasonPoints();
 
   for (const [name, points] of known) {
     await db.execute({
