@@ -265,8 +265,11 @@ export async function submitFixtureScoreAction(formData: FormData) {
       ownGoals: line.ownGoals,
     });
     statements.push({
-      sql: `INSERT INTO player_stats (fixture_id, player_id, played, goals, assists, blue_cards, points, clean_sheet, goals_conceded, penalty_saves, penalty_misses, own_goals)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      // team_id pins this row to whichever team the player was actually on
+      // when this fixture was submitted — a later transfer must never move
+      // an already-played match's stats onto the player's new team.
+      sql: `INSERT INTO player_stats (fixture_id, player_id, played, goals, assists, blue_cards, points, clean_sheet, goals_conceded, penalty_saves, penalty_misses, own_goals, team_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         fixtureId,
         line.playerId,
@@ -280,6 +283,7 @@ export async function submitFixtureScoreAction(formData: FormData) {
         line.penaltySaves,
         line.penaltyMisses,
         line.ownGoals,
+        line.teamId,
       ],
     });
   }

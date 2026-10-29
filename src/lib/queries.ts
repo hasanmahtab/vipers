@@ -144,12 +144,23 @@ export interface FixtureStatLine extends PlayerStatRow {
   player_name: string;
   position: Position;
   team_id: number;
+  is_captain: number;
 }
 
-/** Match-detail rows: every player_stats row for a fixture, joined with the scorer's name/position/team. */
+/**
+ * Match-detail rows: every player_stats row for a fixture, joined with the
+ * scorer's name/position/captaincy. team_id comes from the stat row itself
+ * (the team the player was actually on when this match was played), never
+ * from the player's current team — a later transfer must not rewrite which
+ * team an already-played match is shown under. Falls back to the player's
+ * current team only for old rows from before team_id was backfilled.
+ */
 export function getFixtureStatLines(fixtureId: number): Promise<FixtureStatLine[]> {
   return all<FixtureStatLine>(
-    `SELECT ps.*, pl.name as player_name, pl.position as position, pl.team_id as team_id
+    `SELECT ps.id, ps.fixture_id, ps.player_id, ps.played, ps.goals, ps.assists, ps.blue_cards, ps.points,
+            ps.clean_sheet, ps.goals_conceded, ps.penalty_saves, ps.penalty_misses, ps.own_goals,
+            pl.name as player_name, pl.position as position, pl.is_captain as is_captain,
+            COALESCE(ps.team_id, pl.team_id) as team_id
      FROM player_stats ps
      JOIN players pl ON pl.id = ps.player_id
      WHERE ps.fixture_id = ?

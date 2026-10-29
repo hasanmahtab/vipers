@@ -153,6 +153,12 @@ async function migrate(db: Client) {
     penalty_saves: "INTEGER NOT NULL DEFAULT 0",
     penalty_misses: "INTEGER NOT NULL DEFAULT 0",
     own_goals: "INTEGER NOT NULL DEFAULT 0",
+    // Which team the player was actually representing when this fixture was
+    // played — set at submission time going forward. Needed because a mid-
+    // season transfer must never rewrite history: a player's team can change
+    // for future matches without altering which team their past matches are
+    // credited to. Backfilled for pre-existing rows by backfillStatTeamIds.
+    team_id: "INTEGER REFERENCES teams(id)",
   });
 
   await seedIfEmpty(db);
@@ -166,6 +172,7 @@ async function migrate(db: Client) {
   // re-run under a new name since v1 already used up its one shot.
   await applyOnce(db, "recalculate_points_v2", recalculateHistoricalPoints);
   await applyOnce(db, "transfer_window_1_v1", applyTransferWindow1);
+  await applyOnce(db, "backfill_stat_team_ids_v1", backfillStatTeamIds);
   await applyOnce(db, "dedupe_and_fix_roster_v1", dedupeAndFixRoster);
   await applyOnce(db, "dedupe_and_fix_roster_v2", dedupeAndFixRosterV2);
   await ensureFullRosterPresent(db);
@@ -421,6 +428,35 @@ async function applyTransferWindow1(db: Client) {
     args: [teamIdByName.get(p.team) ?? null, p.position, p.name],
   }));
   await db.batch(statements, "write");
+}
+
+// Every player_stats row recorded before the team_id column existed came
+// from matches played entirely before this transfer window — so each
+// one's historical team is simply the player's pre-transfer team, i.e.
+// FINAL_ROSTER's own `team` field (never TRANSFER_WINDOW_1's override).
+// One-time: from here on, submitFixtureScoreAction stamps team_id at
+// submission time for every new row, so this never needs to run again —
+// a future transfer window just needs the same "never touch past rows"
+// discipline, not another backfill.
+async function backfillStatTeamIds(db: Client) {
+  const teams = await db.execute("SELECT id, name FROM teams");
+  const teamIdByName = new Map(teams.rows.map((t) => [t.name as unknown as string, t.id as unknown as number]));
+  const preTransferTeamByName = new Map(FINAL_ROSTER.map((p) => [normalizePlayerName(p.name), p.team]));
+
+  const rows = await db.execute(`
+    SELECT ps.id as stat_id, pl.name as player_name
+    FROM player_stats ps
+    JOIN players pl ON pl.id = ps.player_id
+    WHERE ps.team_id IS NULL
+  `);
+
+  const statements = rows.rows.flatMap((r) => {
+    const team = preTransferTeamByName.get(normalizePlayerName(r.player_name as unknown as string));
+    const teamId = team ? teamIdByName.get(team) : undefined;
+    if (teamId == null) return [];
+    return [{ sql: "UPDATE player_stats SET team_id = ? WHERE id = ?", args: [teamId, r.stat_id as unknown as number] }];
+  });
+  if (statements.length > 0) await db.batch(statements, "write");
 }
 
 // applyTransferWindow1 above assumed every name matched exactly one row —
