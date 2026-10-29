@@ -179,6 +179,48 @@ async function migrate(db: Client) {
   // every player back on their original team and position.
   await applyOnce(db, "revert_transfer_window_1_v1", applyFinalAuctionResults);
   await applyOnce(db, "restore_fairooz_abir_stats_v1", restoreFairoozAbirStats);
+  await applyOnce(db, "fix_faiad_rehman_assists_v1", fixFaiadRehmanAssists);
+}
+
+// Faiad Rehman's points total was already corrected to the confirmed-
+// right value (44) by an earlier fix — removing that migration's code
+// during today's revert didn't undo the UPDATE it already made, so his
+// points are fine. His assists field was never part of that fix, though,
+// and the admin has now confirmed (cross-checked against the live Season
+// Leaders board) that his real total is 1, not whatever inflated count
+// is currently landing him on the assists leaderboard — the same
+// duplicate-row corruption that caused the points problem. One-time,
+// named correction: trims the surplus off HIS player_stats rows only
+// (largest first, never below zero), touching only the assists field —
+// never points, never any other player's rows — so it can't re-break
+// the total that's already correct.
+async function fixFaiadRehmanAssists(db: Client) {
+  const CORRECT_ASSISTS = 1;
+  const player = await db.execute({
+    sql: "SELECT id FROM players WHERE TRIM(LOWER(name)) = TRIM(LOWER(?))",
+    args: ["Faiad Rehman"],
+  });
+  if (player.rows.length === 0) return;
+  const playerId = player.rows[0].id as unknown as number;
+
+  const statsRows = await db.execute({
+    sql: "SELECT id, assists FROM player_stats WHERE player_id = ? ORDER BY assists DESC",
+    args: [playerId],
+  });
+  const total = statsRows.rows.reduce((sum, r) => sum + Number(r.assists), 0);
+  if (total <= CORRECT_ASSISTS) return;
+
+  let surplus = total - CORRECT_ASSISTS;
+  for (const r of statsRows.rows) {
+    if (surplus <= 0) break;
+    const id = r.id as unknown as number;
+    const assists = Number(r.assists);
+    const reduction = Math.min(assists, surplus);
+    if (reduction > 0) {
+      await db.execute({ sql: "UPDATE player_stats SET assists = ? WHERE id = ?", args: [assists - reduction, id] });
+      surplus -= reduction;
+    }
+  }
 }
 
 // Fairooz Abir's original match history was permanently deleted before

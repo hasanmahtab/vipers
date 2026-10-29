@@ -397,6 +397,63 @@ async function assertSquadSlotAvailable(teamId: number, position: Position, excl
   }
 }
 
+/**
+ * Moves any number of players to a different team in one submission —
+ * each row's select is named teamId_<playerId>, only rows whose value
+ * differs from the player's current team count as a move. Validated as
+ * one batch (not one-player-at-a-time, which would wrongly reject a
+ * same-size swap between two teams) by recomputing every affected team's
+ * final position counts before writing anything, so a submission is
+ * either fully applied or fully rejected — never a partial move.
+ */
+export async function bulkMovePlayersTeamAction(formData: FormData) {
+  await requireAdmin();
+
+  const players = await all<{ id: number; team_id: number | null; position: Position | null; name: string }>(
+    "SELECT id, team_id, position, name FROM players WHERE team_id IS NOT NULL AND position IS NOT NULL"
+  );
+
+  const moves = new Map<number, number>();
+  for (const p of players) {
+    const raw = formData.get(`teamId_${p.id}`);
+    if (raw == null) continue;
+    const newTeamId = Number(raw);
+    if (newTeamId && newTeamId !== p.team_id) moves.set(p.id, newTeamId);
+  }
+  if (moves.size === 0) return;
+
+  const counts = new Map<string, number>();
+  for (const p of players) {
+    const finalTeamId = moves.get(p.id) ?? p.team_id;
+    const key = `${finalTeamId}:${p.position}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  for (const [key, count] of counts) {
+    const [teamIdStr, position] = key.split(":");
+    const limit = POSITION_LIMITS[position as Position];
+    if (count > limit) {
+      const team = await get<{ name: string }>("SELECT name FROM teams WHERE id = ?", [Number(teamIdStr)]);
+      throw new Error(
+        `This would leave ${team?.name ?? "a team"} with ${count} ${position} players — the squad shape is 1 GK, 3 DEF, 3 MID, 1 FWD. Adjust the moves and try again.`
+      );
+    }
+  }
+
+  const db = await getDb();
+  await db.batch(
+    Array.from(moves.entries()).map(([playerId, teamId]) => ({
+      sql: "UPDATE players SET team_id = ? WHERE id = ?",
+      args: [teamId, playerId],
+    })),
+    "write"
+  );
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/players");
+  revalidatePath("/teams");
+  for (const playerId of moves.keys()) revalidatePath(`/players/${playerId}`);
+}
+
 export async function addPlayerAction(formData: FormData) {
   await requireAdmin();
   const teamId = Number(formData.get("teamId"));

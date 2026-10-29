@@ -1,6 +1,7 @@
 import {
   addPlayerAction,
   assignPlayerAction,
+  bulkMovePlayersTeamAction,
   deletePlayerAction,
   importPlayersCsvAction,
   unassignPlayerAction,
@@ -147,6 +148,61 @@ export default async function AdminPlayersPage() {
             );
           })}
         </div>
+      </section>
+
+      <section>
+        <h3 className="mb-3 font-display text-lg font-bold">Move Players Between Teams</h3>
+        <p className="mb-3 text-sm text-white/60">
+          Change as many players&apos; teams as you like below, then save them all at once. The squad shape
+          (1 GK, 3 DEF, 3 MID, 1 FWD) is checked across every move together — so, for example, a straight swap
+          between two players is fine even though either move alone would briefly overfill a team.
+        </p>
+        <Card className="overflow-x-auto">
+          <form action={bulkMovePlayersTeamAction}>
+            <table className="w-full min-w-[520px] text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wide text-white/40">
+                  <th className="pb-2">Player</th>
+                  <th className="pb-2">Pos</th>
+                  <th className="pb-2">FPL Pts</th>
+                  <th className="pb-2">Team</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teams.flatMap((t) =>
+                  squadsByTeam[t.id].map((p) => (
+                    <tr key={p.id} className="border-t border-ink-border">
+                      <td className="py-2">
+                        <div className="flex items-center gap-1.5">
+                          <span>{p.name}</span>
+                          {p.is_captain === 1 && <CaptainBadge size="xs" />}
+                        </div>
+                      </td>
+                      <td className="py-2">{p.position && <PositionBadge position={p.position} />}</td>
+                      <td className="py-2 font-display font-bold text-neon">{pointsByPlayer[p.id] ?? 0}</td>
+                      <td className="py-2">
+                        <select
+                          name={`teamId_${p.id}`}
+                          defaultValue={t.id}
+                          className="rounded border border-ink-border bg-ink-soft px-1.5 py-1"
+                        >
+                          {teams.map((opt) => (
+                            <option key={opt.id} value={opt.id}>
+                              {opt.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+            <button className="mt-3 rounded-md bg-neon px-4 py-2 text-sm font-display font-bold uppercase tracking-wide text-ink hover:bg-neon-glow">
+              Save All Team Changes
+            </button>
+          </form>
+        </Card>
       </section>
 
       <section>
