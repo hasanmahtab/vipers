@@ -153,12 +153,6 @@ async function migrate(db: Client) {
     penalty_saves: "INTEGER NOT NULL DEFAULT 0",
     penalty_misses: "INTEGER NOT NULL DEFAULT 0",
     own_goals: "INTEGER NOT NULL DEFAULT 0",
-    // Which team the player was actually representing when this fixture was
-    // played — set at submission time going forward. Needed because a mid-
-    // season transfer must never rewrite history: a player's team can change
-    // for future matches without altering which team their past matches are
-    // credited to. Backfilled for pre-existing rows by backfillStatTeamIds.
-    team_id: "INTEGER REFERENCES teams(id)",
   });
 
   await seedIfEmpty(db);
@@ -171,12 +165,18 @@ async function migrate(db: Client) {
   // Appearance points changed again after week 1 (1 -> 2) — same recompute,
   // re-run under a new name since v1 already used up its one shot.
   await applyOnce(db, "recalculate_points_v2", recalculateHistoricalPoints);
-  await applyOnce(db, "transfer_window_1_v1", applyTransferWindow1);
-  await applyOnce(db, "backfill_stat_team_ids_v1", backfillStatTeamIds);
-  await applyOnce(db, "dedupe_and_fix_roster_v1", dedupeAndFixRoster);
-  await applyOnce(db, "dedupe_and_fix_roster_v2", dedupeAndFixRosterV2);
-  await ensureFullRosterPresent(db);
-  await applyOnce(db, "fix_faiad_rehman_points_v1", fixFaiadRehmanPoints);
+  // The mid-season transfer window applied on 2026-10-29, and everything
+  // that followed trying to fix fallout from it (duplicate players, a
+  // missing player, a corrupted points total, match-history display),
+  // turned out to cause more problems than it solved. Reverting all of
+  // that code back to this point doesn't undo what it already wrote to
+  // the database, though — team_id/position changes, points corrections —
+  // since removing code never un-runs a past UPDATE. This one-time
+  // migration is the actual undo: re-applying the original, pre-transfer
+  // auction results (applyFinalAuctionResults is just a plain "set every
+  // player's team/position/price/captaincy from FINAL_ROSTER" UPDATE) puts
+  // every player back on their original team and position.
+  await applyOnce(db, "revert_transfer_window_1_v1", applyFinalAuctionResults);
 }
 
 // The point values changed (appearance 2->1, GK/DEF clean sheet 5->4) and
@@ -377,337 +377,6 @@ async function applyFinalAuctionResults(db: Client) {
   await db.batch(budgetStatements, "write");
 }
 
-// First mid-season transfer window: 13 players changed teams, plus 4 more
-// (Aafeef Kabir, Hasan Mahtab, Rhishik Roy, Arafatul Mamur) had their
-// position revised without changing team. Prices and budgets are
-// untouched — the league ran this as a straight swap, no auction spend
-// involved. GKs aren't listed since none of them moved; each team keeps
-// its existing one. Every team still lands on the same 1 GK/3 DEF/3
-// MID/1 FWD shape as before.
-const TRANSFER_WINDOW_1: Array<{ name: string; team: string; position: "GK" | "DEF" | "MID" | "FWD" }> = [
-  // Showstoppers
-  { name: "Riyad Zaman", team: "Showstoppers", position: "DEF" },
-  { name: "Hasnan Sunve", team: "Showstoppers", position: "DEF" },
-  { name: "Azmi Hoque", team: "Showstoppers", position: "DEF" },
-  { name: "Munem Morshed", team: "Showstoppers", position: "MID" },
-  { name: "Fairooz Abir", team: "Showstoppers", position: "MID" },
-  { name: "Shahriar Anwar Khan", team: "Showstoppers", position: "MID" },
-  { name: "Tahsin Islam", team: "Showstoppers", position: "FWD" },
-  // Darkstar FC
-  { name: "Sabit Khan", team: "Darkstar FC", position: "DEF" },
-  { name: "Mirza Mohammed", team: "Darkstar FC", position: "DEF" },
-  { name: "Ishmam Rahman", team: "Darkstar FC", position: "DEF" },
-  { name: "Rahmat Ullah", team: "Darkstar FC", position: "MID" },
-  { name: "Aiman Nawar Chowdhury", team: "Darkstar FC", position: "MID" },
-  { name: "Taqi Rahman", team: "Darkstar FC", position: "MID" },
-  { name: "Shadman Sakib", team: "Darkstar FC", position: "FWD" },
-  // Blackouts FC
-  { name: "Rhishik Roy", team: "Blackouts FC", position: "DEF" },
-  { name: "Farhan Labib", team: "Blackouts FC", position: "DEF" },
-  { name: "Samin Haque", team: "Blackouts FC", position: "DEF" },
-  { name: "Faiad Rehman", team: "Blackouts FC", position: "MID" },
-  { name: "Adeeb Ahmed", team: "Blackouts FC", position: "MID" },
-  { name: "Hasan Mahtab", team: "Blackouts FC", position: "MID" },
-  { name: "Mubashir Rahman", team: "Blackouts FC", position: "FWD" },
-  // Goli Underdogs
-  { name: "K M Chisty", team: "Goli Underdogs", position: "DEF" },
-  { name: "Rizvi Mahmud", team: "Goli Underdogs", position: "DEF" },
-  { name: "Rafiu Hossain", team: "Goli Underdogs", position: "DEF" },
-  { name: "Hussain Yeasin", team: "Goli Underdogs", position: "MID" },
-  { name: "Arafatul Mamur", team: "Goli Underdogs", position: "MID" },
-  { name: "Navid Rahman", team: "Goli Underdogs", position: "MID" },
-  { name: "Aafeef Kabir", team: "Goli Underdogs", position: "FWD" },
-];
-
-async function applyTransferWindow1(db: Client) {
-  const teams = await db.execute("SELECT id, name FROM teams");
-  const teamIdByName = new Map(teams.rows.map((t) => [t.name as unknown as string, t.id as unknown as number]));
-
-  const statements = TRANSFER_WINDOW_1.map((p) => ({
-    sql: "UPDATE players SET team_id = ?, position = ? WHERE name = ?",
-    args: [teamIdByName.get(p.team) ?? null, p.position, p.name],
-  }));
-  await db.batch(statements, "write");
-}
-
-// Every player_stats row recorded before the team_id column existed came
-// from matches played entirely before this transfer window — so each
-// one's historical team is simply the player's pre-transfer team, i.e.
-// FINAL_ROSTER's own `team` field (never TRANSFER_WINDOW_1's override).
-// One-time: from here on, submitFixtureScoreAction stamps team_id at
-// submission time for every new row, so this never needs to run again —
-// a future transfer window just needs the same "never touch past rows"
-// discipline, not another backfill.
-async function backfillStatTeamIds(db: Client) {
-  const teams = await db.execute("SELECT id, name FROM teams");
-  const teamIdByName = new Map(teams.rows.map((t) => [t.name as unknown as string, t.id as unknown as number]));
-  const preTransferTeamByName = new Map(FINAL_ROSTER.map((p) => [normalizePlayerName(p.name), p.team]));
-
-  const rows = await db.execute(`
-    SELECT ps.id as stat_id, pl.name as player_name
-    FROM player_stats ps
-    JOIN players pl ON pl.id = ps.player_id
-    WHERE ps.team_id IS NULL
-  `);
-
-  const statements = rows.rows.flatMap((r) => {
-    const team = preTransferTeamByName.get(normalizePlayerName(r.player_name as unknown as string));
-    const teamId = team ? teamIdByName.get(team) : undefined;
-    if (teamId == null) return [];
-    return [{ sql: "UPDATE player_stats SET team_id = ? WHERE id = ?", args: [teamId, r.stat_id as unknown as number] }];
-  });
-  if (statements.length > 0) await db.batch(statements, "write");
-}
-
-// applyTransferWindow1 above assumed every name matched exactly one row —
-// not safe, since "Add a New Player Directly" and CSV import both used to
-// blindly INSERT rather than checking for an existing player first (fixed
-// separately in actions.ts). If a transferred player had been accidentally
-// re-added as a duplicate before this deploy, the exact-match UPDATE would
-// move every row sharing that name, landing duplicates together on one
-// team, while a name that didn't match byte-for-byte (whitespace, case)
-// silently moved nothing — exactly "some players appear twice on one team,
-// others are missing from another."
-//
-// Derives the complete post-transfer-window roster (FINAL_ROSTER's
-// unchanged GKs/prices/captains, with team+position overridden by
-// TRANSFER_WINDOW_1 for the 28 players it covers), then for each of the 32
-// canonical names: merges away any duplicate rows (keeping whichever copy
-// has real match history, moving stats off the others first) and sets the
-// survivor to the correct team/position, matching case/whitespace-
-// insensitively. Safe to re-run — settles into the same end state.
-async function dedupeAndFixRoster(db: Client) {
-  const teams = await db.execute("SELECT id, name FROM teams");
-  const teamIdByName = new Map(teams.rows.map((t) => [t.name as unknown as string, t.id as unknown as number]));
-
-  const windowByName = new Map(TRANSFER_WINDOW_1.map((p) => [p.name, p]));
-  const fullRoster = FINAL_ROSTER.map((p) => {
-    const moved = windowByName.get(p.name);
-    return moved ? { ...p, team: moved.team, position: moved.position } : p;
-  });
-
-  for (const target of fullRoster) {
-    const rows = await db.execute({
-      sql: "SELECT id FROM players WHERE TRIM(LOWER(name)) = TRIM(LOWER(?)) ORDER BY id",
-      args: [target.name],
-    });
-    if (rows.rows.length === 0) continue;
-
-    let survivorId = rows.rows[0].id as unknown as number;
-    if (rows.rows.length > 1) {
-      for (const r of rows.rows) {
-        const id = r.id as unknown as number;
-        const hasStats = await db.execute({
-          sql: "SELECT 1 FROM player_stats WHERE player_id = ? LIMIT 1",
-          args: [id],
-        });
-        if (hasStats.rows.length > 0) {
-          survivorId = id;
-          break;
-        }
-      }
-      for (const r of rows.rows) {
-        const dupId = r.id as unknown as number;
-        if (dupId === survivorId) continue;
-        const dupStats = await db.execute({
-          sql: "SELECT id, fixture_id FROM player_stats WHERE player_id = ?",
-          args: [dupId],
-        });
-        for (const s of dupStats.rows) {
-          const fixtureId = s.fixture_id as unknown as number;
-          const statId = s.id as unknown as number;
-          const clash = await db.execute({
-            sql: "SELECT 1 FROM player_stats WHERE player_id = ? AND fixture_id = ?",
-            args: [survivorId, fixtureId],
-          });
-          if (clash.rows.length === 0) {
-            await db.execute({ sql: "UPDATE player_stats SET player_id = ? WHERE id = ?", args: [survivorId, statId] });
-          } else {
-            await db.execute({ sql: "DELETE FROM player_stats WHERE id = ?", args: [statId] });
-          }
-        }
-        await db.execute({ sql: "DELETE FROM players WHERE id = ?", args: [dupId] });
-      }
-    }
-
-    const teamId = teamIdByName.get(target.team) ?? null;
-    await db.execute({
-      sql: "UPDATE players SET name = ?, team_id = ?, position = ? WHERE id = ?",
-      args: [target.name, teamId, target.position, survivorId],
-    });
-  }
-}
-
-// v1 above moved/merged player_stats between duplicate rows, including a
-// branch that outright DELETED a stat row on a clash — too risky in
-// hindsight, since any such merge can shift a player's total points and
-// therefore the FPL ranking, which must never move as a side effect of a
-// roster cleanup. v1's name match (TRIM/LOWER only) also missed at least
-// one real duplicate (Fairooz Abir), most likely from a double space or
-// non-breaking space in one copy of the name that TRIM doesn't collapse.
-//
-// v2 fixes both: name matching normalizes far more aggressively (collapses
-// any run of whitespace incl. non-breaking/zero-width characters, trims,
-// lowercases) done in JS rather than relying on SQLite string functions,
-// and duplicate resolution NEVER touches player_stats — a duplicate with
-// zero recorded stats is simply deleted (provably no ranking impact); a
-// duplicate that has any real stats is left completely alone (not
-// deleted, not merged, not even its team/position changed) rather than
-// risk altering a total the current rankings already reflect. The
-// survivor for team/position purposes is whichever copy currently has the
-// most points, so the roster display matches whichever row the rankings
-// are already crediting.
-function normalizePlayerName(raw: string): string {
-  return raw
-    .replace(/[ ​-‍﻿]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
-async function dedupeAndFixRosterV2(db: Client) {
-  const teams = await db.execute("SELECT id, name FROM teams");
-  const teamIdByName = new Map(teams.rows.map((t) => [t.name as unknown as string, t.id as unknown as number]));
-
-  const windowByName = new Map(TRANSFER_WINDOW_1.map((p) => [p.name, p]));
-  const fullRoster = FINAL_ROSTER.map((p) => {
-    const moved = windowByName.get(p.name);
-    return moved ? { ...p, team: moved.team, position: moved.position } : p;
-  });
-
-  const allPlayers = await db.execute("SELECT id, name FROM players");
-  const idsByNormalizedName = new Map<string, number[]>();
-  for (const r of allPlayers.rows) {
-    const id = r.id as unknown as number;
-    const key = normalizePlayerName(r.name as unknown as string);
-    const list = idsByNormalizedName.get(key) ?? [];
-    list.push(id);
-    idsByNormalizedName.set(key, list);
-  }
-
-  for (const target of fullRoster) {
-    const ids = idsByNormalizedName.get(normalizePlayerName(target.name));
-    if (!ids || ids.length === 0) continue;
-
-    let survivorId = ids[0];
-    if (ids.length > 1) {
-      let bestPoints = -Infinity;
-      for (const id of ids) {
-        const sumRow = await db.execute({
-          sql: "SELECT COALESCE(SUM(points), 0) as pts FROM player_stats WHERE player_id = ?",
-          args: [id],
-        });
-        const pts = Number(sumRow.rows[0].pts);
-        if (pts > bestPoints) {
-          bestPoints = pts;
-          survivorId = id;
-        }
-      }
-      for (const id of ids) {
-        if (id === survivorId) continue;
-        const hasStats = await db.execute({
-          sql: "SELECT 1 FROM player_stats WHERE player_id = ? LIMIT 1",
-          args: [id],
-        });
-        if (hasStats.rows.length === 0) {
-          await db.execute({ sql: "DELETE FROM players WHERE id = ?", args: [id] });
-        }
-        // A duplicate carrying real stats is left entirely untouched —
-        // it won't show up in this player's squad slot, but nothing about
-        // its recorded history or any ranking derived from it changes.
-      }
-    }
-
-    const teamId = teamIdByName.get(target.team) ?? null;
-    await db.execute({
-      sql: "UPDATE players SET name = ?, team_id = ?, position = ? WHERE id = ?",
-      args: [target.name, teamId, target.position, survivorId],
-    });
-  }
-}
-
-// Both dedupe passes above only ever act on rows that already match a
-// canonical roster name by some normalization — neither has any path to
-// recreate a player with ZERO matching rows. Fairooz Abir being reported
-// missing for a third time, after two rounds of fixing whitespace/
-// duplicate-name matching, means her row was most likely deleted outright
-// (e.g. the unprotected "Delete" button on a non-captain row in Edit Squad
-// Player), not merely duplicated or misspelled. Generalizes
-// ensureCaptainsPresent below to the full 32-player canonical roster: on
-// every boot, re-insert any player who is completely absent (by the same
-// aggressive normalizePlayerName matching dedupeAndFixRosterV2 uses), with
-// their correct post-transfer-window team/position/price/last season
-// points. A no-op once everyone is present, so safe to run unconditionally
-// every start rather than once. Note: if a player's row was fully deleted,
-// ON DELETE CASCADE already erased her match history for good — this can
-// restore her to the squad with the right team/position, but not recover
-// points from matches played before she was re-inserted.
-async function ensureFullRosterPresent(db: Client) {
-  const teams = await db.execute("SELECT id, name FROM teams");
-  const teamIdByName = new Map(teams.rows.map((t) => [t.name as unknown as string, t.id as unknown as number]));
-
-  const windowByName = new Map(TRANSFER_WINDOW_1.map((p) => [p.name, p]));
-  const fullRoster = FINAL_ROSTER.map((p) => {
-    const moved = windowByName.get(p.name);
-    return moved ? { ...p, team: moved.team, position: moved.position } : p;
-  });
-
-  const allPlayers = await db.execute("SELECT name FROM players");
-  const existingNames = new Set(allPlayers.rows.map((r) => normalizePlayerName(r.name as unknown as string)));
-
-  const knownLastSeasonPoints = getKnownLastSeasonPoints();
-
-  for (const target of fullRoster) {
-    if (existingNames.has(normalizePlayerName(target.name))) continue;
-    const teamId = teamIdByName.get(target.team) ?? null;
-    const lastSeasonPoints = target.lastSeasonPoints ?? knownLastSeasonPoints.get(target.name) ?? 0;
-    await db.execute({
-      sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (?, ?, ?, ?, ?, ?)",
-      args: [teamId, target.name, target.position, target.price, lastSeasonPoints, target.captain ? 1 : 0],
-    });
-  }
-}
-
-// Faiad Rehman's total FPL points were reported showing 70 when the
-// correct value is 44 — almost certainly ~26 phantom points absorbed from
-// a duplicate row's match history during dedupeAndFixRoster v1's now-
-// retired stat-merge logic, before v2 banned touching player_stats
-// entirely. One-time, named correction: trims the surplus off HIS
-// player_stats rows only (largest first, never below zero) until his
-// total matches the confirmed-correct value. Guarded so it's a no-op if
-// his total is already at or below 44 (e.g. already fixed, or this runs
-// against a database where the bug never happened) — it only ever lowers
-// a too-high total, never raises one, and never touches any other
-// player's rows.
-async function fixFaiadRehmanPoints(db: Client) {
-  const CORRECT_TOTAL = 44;
-  const player = await db.execute({
-    sql: "SELECT id FROM players WHERE TRIM(LOWER(name)) = TRIM(LOWER(?))",
-    args: ["Faiad Rehman"],
-  });
-  if (player.rows.length === 0) return;
-  const playerId = player.rows[0].id as unknown as number;
-
-  const statsRows = await db.execute({
-    sql: "SELECT id, points FROM player_stats WHERE player_id = ? ORDER BY points DESC",
-    args: [playerId],
-  });
-  const total = statsRows.rows.reduce((sum, r) => sum + Number(r.points), 0);
-  if (total <= CORRECT_TOTAL) return;
-
-  let surplus = total - CORRECT_TOTAL;
-  for (const r of statsRows.rows) {
-    if (surplus <= 0) break;
-    const id = r.id as unknown as number;
-    const points = Number(r.points);
-    const reduction = Math.min(points, surplus);
-    if (reduction > 0) {
-      await db.execute({ sql: "UPDATE player_stats SET points = ? WHERE id = ?", args: [points - reduction, id] });
-      surplus -= reduction;
-    }
-  }
-}
-
 // submitFixtureScoreAction used to add a fixture's win/draw/loss bonus to
 // budget_remaining on every submission without reversing the previous
 // bonus first, so re-submitting (correcting) an already-played fixture's
@@ -782,7 +451,7 @@ async function ensureCaptainsPresent(db: Client) {
 // re-entering that field. Runs on every boot; only ever moves a 0 to the
 // known correct value, never touches a player already showing something
 // else (that could be a legitimate admin edit, not damage to repair).
-function getKnownLastSeasonPoints(): Map<string, number> {
+async function ensureLastSeasonPointsCorrect(db: Client) {
   const known = new Map<string, number>();
   for (const [rawName, points] of RAW_PLAYER_POOL) {
     if (points === 0) continue;
@@ -792,11 +461,6 @@ function getKnownLastSeasonPoints(): Map<string, number> {
   for (const captain of FINAL_ROSTER.filter((p) => p.captain)) {
     if (captain.lastSeasonPoints) known.set(captain.name, captain.lastSeasonPoints);
   }
-  return known;
-}
-
-async function ensureLastSeasonPointsCorrect(db: Client) {
-  const known = getKnownLastSeasonPoints();
 
   for (const [name, points] of known) {
     await db.execute({

@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getFixture, getFixtureStatLines, getGameweek, getTeam } from "@/lib/queries";
+import {
+  getFixture,
+  getFixtureStatLines,
+  getGameweek,
+  getPlayersByTeam,
+  getTeam,
+} from "@/lib/queries";
 import { CaptainBadge, Card, PlayerLink, PositionBadge, SectionTitle, TeamBadge, TeamLink } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -9,26 +15,28 @@ export default async function FixtureDetailPage({ params }: { params: { id: stri
   const fixture = await getFixture(Number(params.id));
   if (!fixture) notFound();
 
-  const [home, away, gameweek, statLines] = await Promise.all([
+  const [home, away, gameweek, statLines, homePlayers, awayPlayers] = await Promise.all([
     getTeam(fixture.home_team_id),
     getTeam(fixture.away_team_id),
     getGameweek(fixture.gameweek_id),
     getFixtureStatLines(fixture.id),
+    getPlayersByTeam(fixture.home_team_id),
+    getPlayersByTeam(fixture.away_team_id),
   ]);
   if (!home || !away) notFound();
 
+  const statsByPlayer = new Map(statLines.map((s) => [s.player_id, s]));
   const final = fixture.status === "final";
 
-  // Each stat line already carries the team the player was actually on
-  // when this fixture was played (not their current team) — a later
-  // transfer must never move an already-played match onto a different
-  // team's page. Best performers first; non-scorers sink to the bottom.
-  const byPointsDesc = (teamId: number) =>
-    statLines.filter((s) => s.team_id === teamId).sort((a, b) => b.points - a.points);
+  // Best performers first; players who didn't play (no points at all) sink to the bottom.
+  const byPointsDesc = <T extends { id: number }>(players: T[]) =>
+    [...players].sort(
+      (a, b) => (statsByPlayer.get(b.id)?.points ?? -Infinity) - (statsByPlayer.get(a.id)?.points ?? -Infinity)
+    );
 
   const teamColumns = [
-    { team: home, players: byPointsDesc(home.id) },
-    { team: away, players: byPointsDesc(away.id) },
+    { team: home, players: byPointsDesc(homePlayers) },
+    { team: away, players: byPointsDesc(awayPlayers) },
   ];
 
   return (
@@ -77,25 +85,26 @@ export default async function FixtureDetailPage({ params }: { params: { id: stri
                 <h3 className="font-display text-base font-bold">{team.name}</h3>
               </div>
               <Card className="divide-y divide-ink-border">
-                {players.map((s) => {
-                  const played = s.played === 1;
+                {players.map((p) => {
+                  const s = statsByPlayer.get(p.id);
+                  const played = s ? s.played === 1 : false;
                   return (
-                    <div key={s.id} className="py-2 first:pt-0 last:pb-0">
+                    <div key={p.id} className="py-2 first:pt-0 last:pb-0">
                       <div className="flex items-center justify-between">
                         <div className="flex min-w-0 items-center gap-1.5">
-                          <PositionBadge position={s.position} />
+                          <PositionBadge position={p.position!} />
                           <PlayerLink
-                            id={s.player_id}
-                            name={s.player_name}
+                            id={p.id}
+                            name={p.name}
                             className={`truncate text-sm font-medium ${played ? "" : "text-white/40"}`}
                           />
-                          {s.is_captain === 1 && <CaptainBadge size="xs" />}
+                          {p.is_captain === 1 && <CaptainBadge size="xs" />}
                         </div>
                         <span className="shrink-0 font-display text-sm font-bold text-neon">
-                          {played ? `${s.points} pts` : "DNP"}
+                          {played ? `${s!.points} pts` : "DNP"}
                         </span>
                       </div>
-                      {played && (
+                      {played && s && (
                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 pl-1 text-[11px] text-white/50">
                           {s.goals > 0 && <span>⚽ {s.goals} goal{s.goals > 1 ? "s" : ""}</span>}
                           {s.assists > 0 && <span>🅰️ {s.assists} assist{s.assists > 1 ? "s" : ""}</span>}
@@ -110,7 +119,7 @@ export default async function FixtureDetailPage({ params }: { params: { id: stri
                           {s.own_goals > 0 && (
                             <span>🔴 {s.own_goals} own goal{s.own_goals > 1 ? "s" : ""}</span>
                           )}
-                          {s.position === "GK" && s.goals_conceded > 0 && (
+                          {p.position === "GK" && s.goals_conceded > 0 && (
                             <span>{s.goals_conceded} conceded</span>
                           )}
                         </div>
