@@ -159,6 +159,7 @@ async function migrate(db: Client) {
   await reconcileRosterChanges(db);
   await applyOnce(db, "final_auction_results_v1", applyFinalAuctionResults);
   await ensureCaptainsPresent(db);
+  await ensureFullRosterPresent(db);
   await ensureLastSeasonPointsCorrect(db);
   await applyOnce(db, "recalculate_points_v1", recalculateHistoricalPoints);
   await applyOnce(db, "fix_budget_double_counting_v1", fixBudgetDoubleCounting);
@@ -440,6 +441,40 @@ async function ensureCaptainsPresent(db: Client) {
     await db.execute({
       sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (?, ?, ?, 0, ?, 1)",
       args: [teamId, captain.name, captain.position, lastSeasonPoints],
+    });
+  }
+}
+
+function normalizePlayerName(raw: string): string {
+  return raw
+    .replace(/[ ​-‍﻿]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+// Generalizes ensureCaptainsPresent above to the full 32-player canonical
+// roster — a non-captain can be fully deleted too (e.g. an unguarded
+// "Delete" click in Edit Squad Player), and nothing else restores them.
+// Runs on every boot; a no-op once everyone's present. Matches names with
+// the same aggressive whitespace/case-insensitive normalization used
+// elsewhere, since a byte-for-byte mismatch is exactly how "missing
+// player" bugs keep recurring. A freshly-restored row starts with
+// last_season_points at 0 — ensureLastSeasonPointsCorrect right below
+// tops it up to the real value on this same boot.
+async function ensureFullRosterPresent(db: Client) {
+  const teams = await db.execute("SELECT id, name FROM teams");
+  const teamIdByName = new Map(teams.rows.map((t) => [t.name as unknown as string, t.id as unknown as number]));
+
+  const allPlayers = await db.execute("SELECT name FROM players");
+  const existingNames = new Set(allPlayers.rows.map((r) => normalizePlayerName(r.name as unknown as string)));
+
+  for (const target of FINAL_ROSTER) {
+    if (existingNames.has(normalizePlayerName(target.name))) continue;
+    const teamId = teamIdByName.get(target.team) ?? null;
+    await db.execute({
+      sql: "INSERT INTO players (team_id, name, position, price, last_season_points, is_captain) VALUES (?, ?, ?, ?, ?, ?)",
+      args: [teamId, target.name, target.position, target.price, target.lastSeasonPoints ?? 0, target.captain ? 1 : 0],
     });
   }
 }
